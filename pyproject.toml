@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vogelvrij"
+version = "0.1.0"
+description = "Collect and analyze aircraft movements over a local region."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "psycopg[binary]>=3.2,<4",
+    "requests>=2.31,<3",
+    "sqlalchemy>=2.0,<3",
+    # macOS system Python 3.9 is linked against LibreSSL, which urllib3 2 does not support.
+    "urllib3<2; python_version < '3.10'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "responses>=0.25,<1",
+    "ruff>=0.11,<1",
+]
+
+[project.scripts]
+vogelvrij-collect = "vogelvrij.cli:main"
+vogelvrij-collect-wind = "vogelvrij.weather:main"
+vogelvrij-collect-taf = "vogelvrij.taf:main"
+vogelvrij-map = "vogelvrij.map_page:main"
+vogelvrij-map-history = "vogelvrij.map_history:main"
+vogelvrij-web = "vogelvrij.web:main"
+
+[tool.setuptools.package-data]
+vogelvrij = ["templates/*.html", "templates/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = [
+    # Python 3.9 does not support PEP 604 union syntax or built-in generic types
+    # consistently enough for this project's minimum supported version.
+    "UP006",
+    "UP035",
+    "UP045",
+]

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="nl-BE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vogelvrij · Vliegsporen</title>
+  <style nonce="__CSP_NONCE__">
+    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #173044; background: #eef3f7; }
+    .shell { display: grid; grid-template-columns: minmax(290px, 360px) 1fr; height: 100dvh; }
+    .panel { padding: 24px; overflow: auto; background: #fff; border-right: 1px solid #d8e1e8; }
+    h1 { margin: 0 0 4px; font-size: 1.6rem; letter-spacing: -.03em; }
+    h2 { font-size: 1rem; margin: 26px 0 12px; }
+    .subtle { color: #586d7d; font-size: .9rem; line-height: 1.45; }
+    .summary { padding: 16px; margin: 20px 0; background: #eef5fa; border-radius: 12px; }
+    .summary strong { display: block; font-size: 2rem; line-height: 1; margin-bottom: 8px; }
+    #aircraft-list { list-style: none; padding: 0; margin: 0; }
+    #aircraft-list li + li { border-top: 1px solid #e4ebf0; }
+    .aircraft-button { width: 100%; border: 0; background: transparent; text-align: left;
+      padding: 11px 2px; color: inherit; cursor: pointer; font: inherit; }
+    .aircraft-button:hover, .aircraft-button:focus-visible { color: #006eaa; }
+    .aircraft-button strong { display: block; font-size: .95rem; }
+    .aircraft-button span { display: block; margin-top: 2px; color: #64798a; font-size: .82rem; }
+    .legend { font-size: .78rem; color: #63798a; margin-top: 20px; }
+    .error { color: #a62323; font-weight: 600; }
+    #map { min-height: 420px; }
+    @media (max-width: 720px) {
+      .shell { display: flex; flex-direction: column-reverse; height: auto; min-height: 100dvh; }
+      #map { height: 55dvh; min-height: 340px; }
+      .panel { border-right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="panel">
+      <h1>Vogelvrij · vliegsporen</h1>
+      <div class="subtle">Vliegtuigposities uit de tien recentste metingen</div>
+      <div class="summary">
+        <strong id="aircraft-count">0</strong>
+        <span id="run-detail" class="subtle"></span>
+      </div>
+      <p id="status" class="subtle">Kaart laden…</p>
+      <h2>Vliegtuigen · laatst gezien eerst</h2>
+      <ul id="aircraft-list"></ul>
+      <p class="legend">Gekleurde stippen tonen eerdere posities; lijnen verbinden de waarnemingen.
+        Een rode pijl toont de laatste positie en vliegrichting per vliegtuig. Blauw: 25LR-nadering;
+        groen: 7LR-nadering; oranje: 01-nadering; paars: 19-nadering.
+        De lijnen zijn geen gemeten vliegroutes of geluidsmetingen.</p>
+      <p class="legend">Vliegtuiggegevens © bijdragers van ADSB.lol (ODbL 1.0).</p>
+    </aside>
+    <div id="map" role="application" aria-label="Kaart met vliegsporen uit recente metingen"></div>
+  </main>
+
+  <script id="map-data" type="application/json">__MAP_DATA__</script>
+  <script nonce="__CSP_NONCE__">
+    const data = JSON.parse(document.getElementById("map-data").textContent);
+    const status = document.getElementById("status");
+    const formatTime = value => new Intl.DateTimeFormat("nl-BE", {
+      dateStyle: "short", timeStyle: "short", timeZone: "Europe/Brussels",
+    }).format(new Date(value));
+    document.getElementById("aircraft-count").textContent = String(data.aircraft.length);
+    document.getElementById("run-detail").textContent =
+      `vliegtuigen · ${data.run_count} metingen · ${formatTime(data.first_collected_at)}–${formatTime(data.last_collected_at)}`;
+
+    function addTextRow(parent, label, value) {
+      const row = document.createElement("div");
+      const bold = document.createElement("strong");
+      bold.textContent = `${label}: `;
+      row.append(bold, document.createTextNode(String(value)));
+      parent.append(row);
+    }
+
+    window.initMap = function () {
+      const map = new google.maps.Map(document.getElementById("map"), {
+        center: data.center,
+        zoom: 11,
+        mapTypeControl: false,
+        fullscreenControl: true,
+      });
+      const bounds = new google.maps.LatLngBounds();
+      const approachColors = ["#006eaa", "#008f65", "#b46d00", "#8e4b9b"];
+      data.approaches.forEach((approach, index) => {
+        const color = approachColors[index % approachColors.length];
+        new google.maps.Polygon({
+          map, paths: approach.points,
+          strokeColor: color, strokeOpacity: .95, strokeWeight: 2,
+          fillColor: color, fillOpacity: .06,
+        });
+        approach.points.forEach(point => bounds.extend(point));
+      });
+
+      const trackColors = ["#6253a5", "#ca7a19", "#29799a", "#735b38", "#8e6392", "#537128"];
+      const list = document.getElementById("aircraft-list");
+      const info = new google.maps.InfoWindow();
+      data.aircraft.forEach((aircraft, index) => {
+        const positions = aircraft.positions;
+        const path = positions.map(point => ({ lat: point.lat, lng: point.lng }));
+        const trackColor = trackColors[index % trackColors.length];
+        path.forEach(point => bounds.extend(point));
+        if (path.length > 1) {
+          new google.maps.Polyline({
+            map, path, geodesic: true,
+            strokeColor: trackColor,
+            strokeOpacity: .85, strokeWeight: 3,
+          });
+        }
+        positions.slice(0, -1).forEach(point => {
+          new google.maps.Marker({
+            map, position: { lat: point.lat, lng: point.lng },
+            title: `${aircraft.flight || aircraft.hex || "Onbekend vliegtuig"} · ${formatTime(point.observed_at)}`,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 3, fillColor: trackColor, fillOpacity: 1,
+              strokeColor: "#ffffff", strokeWeight: 1,
+            },
+          });
+        });
+
+        const last = positions[positions.length - 1];
+        const lastPosition = path[path.length - 1];
+        const marker = new google.maps.Marker({
+          map, position: lastPosition,
+          title: aircraft.flight || aircraft.hex || "Onbekend vliegtuig",
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 6,
+            rotation: last.track_degrees ?? 0,
+            fillColor: "#e45c3c", fillOpacity: 1,
+            strokeColor: "#87321c", strokeWeight: 1,
+          },
+        });
+        const card = document.createElement("div");
+        addTextRow(card, "Vlucht", aircraft.flight || "Onbekend");
+        addTextRow(card, "ICAO", aircraft.hex || "Onbekend");
+        addTextRow(card, "Posities", positions.length);
+        addTextRow(card, "Laatste hoogte", last.altitude_ft == null ? "Onbekend" : `${last.altitude_ft} ft`);
+        addTextRow(card, "Laatste koers", last.track_degrees == null ? "Onbekend" : `${last.track_degrees}°`);
+        addTextRow(card, "Laatst gezien", formatTime(last.observed_at));
+        const show = () => { info.setContent(card); info.open({ anchor: marker, map }); };
+        marker.addListener("click", show);
+
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.className = "aircraft-button";
+        button.type = "button";
+        const name = document.createElement("strong");
+        name.textContent = aircraft.flight || aircraft.hex || "Onbekend vliegtuig";
+        const details = document.createElement("span");
+        details.textContent = `${positions.length} posities · laatst gezien ${formatTime(last.observed_at)}`;
+        button.append(name, details);
+        button.addEventListener("click", () => {
+          const aircraftBounds = new google.maps.LatLngBounds();
+          path.forEach(point => aircraftBounds.extend(point));
+          if (path.length > 1) map.fitBounds(aircraftBounds, 70);
+          else { map.panTo(lastPosition); map.setZoom(Math.max(map.getZoom(), 12)); }
+          show();
+        });
+        item.append(button);
+        list.append(item);
+      });
+      status.textContent = data.aircraft.length
+        ? "Selecteer een vliegtuig om de laatste positie te bekijken."
+        : "In deze metingen zijn geen vliegtuigposities opgeslagen.";
+      map.fitBounds(bounds, 40);
+    };
+    window.gm_authFailure = function () {
+      status.textContent = "Google Maps kon niet worden geladen. Controleer de sleutel en de websitebeperkingen.";
+      status.classList.add("error");
+    };
+  </script>
+  <script async nonce="__CSP_NONCE__" src="__MAPS_SCRIPT_URL__"></script>
+</body>
+</html>

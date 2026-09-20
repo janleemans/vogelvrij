@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="nl-BE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vogelvrij · Recentste vliegtuigen</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #173044; background: #eef3f7; }
+    .shell { display: grid; grid-template-columns: minmax(280px, 350px) 1fr; height: 100dvh; }
+    .panel { padding: 24px; overflow: auto; background: #fff; border-right: 1px solid #d8e1e8; }
+    h1 { margin: 0 0 4px; font-size: 1.6rem; letter-spacing: -.03em; }
+    .subtle { color: #586d7d; font-size: .9rem; line-height: 1.45; }
+    .summary { padding: 16px; margin: 20px 0; background: #eef5fa; border-radius: 12px; }
+    .summary strong { display: block; font-size: 2rem; line-height: 1; margin-bottom: 8px; }
+    h2 { font-size: 1rem; margin: 26px 0 12px; }
+    #aircraft-list { list-style: none; padding: 0; margin: 0; }
+    #aircraft-list li + li { border-top: 1px solid #e4ebf0; }
+    .aircraft-button { width: 100%; border: 0; background: transparent; text-align: left;
+      padding: 11px 2px; color: inherit; cursor: pointer; font: inherit; }
+    .aircraft-button:hover, .aircraft-button:focus-visible { color: #006eaa; }
+    .aircraft-button strong { display: block; font-size: .95rem; }
+    .aircraft-button span { display: block; margin-top: 2px; color: #64798a; font-size: .82rem; }
+    #map { min-height: 420px; }
+    .error { color: #a62323; font-weight: 600; }
+    .legend { font-size: .78rem; color: #63798a; margin-top: 20px; }
+    @media (max-width: 720px) {
+      .shell { display: flex; flex-direction: column-reverse; height: auto; min-height: 100dvh; }
+      #map { height: 55dvh; min-height: 340px; }
+      .panel { border-right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="panel">
+      <h1>Vogelvrij</h1>
+      <div class="subtle">Vliegtuigen uit de recentste meting</div>
+      <div class="summary">
+        <strong id="aircraft-count">0</strong>
+        <span id="run-detail" class="subtle"></span>
+      </div>
+      <p id="status" class="subtle">Kaart laden…</p>
+      <p id="search-area" class="subtle"></p>
+      <h2>Vliegtuigen · laatst gezien eerst</h2>
+      <ul id="aircraft-list"></ul>
+      <p class="legend">Blauw: 25LR-nadering. Groen: 7LR-nadering. Oranje: 01-nadering. Paars: 19-nadering.
+        Grijze cirkel en donkere markering: zoekgebied en middelpunt van de recentste meting.
+        Positie en hoogte zijn waarnemingen, geen geluidsmetingen.</p>
+      <p class="legend">Vliegtuiggegevens © bijdragers van ADSB.lol (ODbL 1.0).</p>
+    </aside>
+    <div id="map" role="application" aria-label="Kaart met vliegtuigen uit de recentste meting"></div>
+  </main>
+
+  <script id="map-data" type="application/json">__MAP_DATA__</script>
+  <script>
+    const data = JSON.parse(document.getElementById("map-data").textContent);
+    const status = document.getElementById("status");
+    const formatTime = value => new Intl.DateTimeFormat("nl-BE", {
+      dateStyle: "short", timeStyle: "short", timeZone: "Europe/Brussels",
+    }).format(new Date(value));
+    document.getElementById("aircraft-count").textContent = String(data.aircraft.length);
+    document.getElementById("run-detail").textContent =
+      `vliegtuigen · meting ${data.run_id} · ${formatTime(data.collected_at)}`;
+    document.getElementById("search-area").textContent =
+      `Zoekmiddelpunt: ${data.center.lat.toFixed(4)}°, ${data.center.lng.toFixed(4)}° · straal: ${data.radius_nm} NM`;
+
+    function addTextRow(parent, label, value) {
+      const row = document.createElement("div");
+      const bold = document.createElement("strong");
+      bold.textContent = `${label}: `;
+      row.append(bold, document.createTextNode(value));
+      parent.append(row);
+    }
+
+    window.initMap = function () {
+      const map = new google.maps.Map(document.getElementById("map"), {
+        center: data.center,
+        zoom: 11,
+        mapTypeControl: false,
+        fullscreenControl: true,
+      });
+      const searchCircle = new google.maps.Circle({
+        map, center: data.center, radius: data.radius_m,
+        strokeColor: "#475d70", strokeOpacity: .95, strokeWeight: 2,
+        fillColor: "#8295a5", fillOpacity: .06,
+      });
+      const centerMarker = new google.maps.Marker({
+        map, position: data.center,
+        title: `Zoekmiddelpunt · straal ${data.radius_nm} NM`,
+        label: { text: "C", color: "#ffffff", fontWeight: "bold" },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: "#173044", fillOpacity: 1,
+          strokeColor: "#ffffff", strokeWeight: 2,
+        },
+      });
+      const centerInfo = new google.maps.InfoWindow({
+        content: `Zoekmiddelpunt: ${data.center.lat.toFixed(5)}°, ${data.center.lng.toFixed(5)}° · straal ${data.radius_nm} NM`,
+      });
+      centerMarker.addListener("click", () => centerInfo.open({ anchor: centerMarker, map }));
+      const bounds = new google.maps.LatLngBounds();
+      bounds.union(searchCircle.getBounds());
+      const approachColors = ["#006eaa", "#008f65", "#b46d00", "#8e4b9b"];
+      data.approaches.forEach((approach, index) => {
+        const color = approachColors[index % approachColors.length];
+        new google.maps.Polygon({
+          map, paths: approach.points,
+          strokeColor: color, strokeOpacity: .95, strokeWeight: 2,
+          fillColor: color, fillOpacity: .10,
+        });
+        approach.points.forEach(point => bounds.extend(point));
+      });
+      const list = document.getElementById("aircraft-list");
+      const info = new google.maps.InfoWindow();
+
+      for (const plane of data.aircraft) {
+        const position = { lat: plane.lat, lng: plane.lon };
+        bounds.extend(position);
+        const marker = new google.maps.Marker({
+          map, position, title: plane.flight || plane.hex || "Onbekend vliegtuig",
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 6,
+            rotation: plane.track_degrees ?? 0,
+            fillColor: "#e45c3c", fillOpacity: 1,
+            strokeColor: "#87321c", strokeWeight: 1,
+          },
+        });
+        const card = document.createElement("div");
+        addTextRow(card, "Vlucht", plane.flight || "Onbekend");
+        addTextRow(card, "ICAO", plane.hex || "Onbekend");
+        addTextRow(card, "Hoogte", plane.altitude_ft == null ? "Onbekend" : `${plane.altitude_ft} ft`);
+        addTextRow(card, "Snelheid", plane.speed_knots == null ? "Onbekend" : `${plane.speed_knots} kt`);
+        addTextRow(card, "Koers", plane.track_degrees == null ? "Onbekend" : `${plane.track_degrees}°`);
+        addTextRow(card, "Laatst gezien", formatTime(plane.observed_at));
+        const show = () => { info.setContent(card); info.open({ anchor: marker, map }); };
+        marker.addListener("click", show);
+
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.className = "aircraft-button";
+        button.type = "button";
+        const name = document.createElement("strong");
+        name.textContent = plane.flight || plane.hex || "Onbekend vliegtuig";
+        const details = document.createElement("span");
+        details.textContent = `${plane.altitude_ft ?? "?"} ft · ${plane.track_degrees ?? "?"}° · laatst gezien ${formatTime(plane.observed_at)}`;
+        button.append(name, details);
+        button.addEventListener("click", () => {
+          map.panTo(position);
+          map.setZoom(Math.max(map.getZoom(), 12));
+          show();
+        });
+        item.append(button);
+        list.append(item);
+      }
+      if (!data.aircraft.length) {
+        status.textContent = "Geen vliegtuigen voldeden aan de filters in deze meting.";
+      } else {
+        status.textContent = "Selecteer een vliegtuig voor meer details.";
+      }
+      map.fitBounds(bounds, 40);
+    };
+    window.gm_authFailure = function () {
+      status.textContent = "Google Maps kon niet worden geladen. Controleer de sleutel en de websitebeperkingen.";
+      status.classList.add("error");
+    };
+  </script>
+  <script async src="__MAPS_SCRIPT_URL__"></script>
+</body>
+</html>
