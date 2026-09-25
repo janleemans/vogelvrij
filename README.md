@@ -96,6 +96,50 @@ Save this as `/etc/systemd/system/vogelvrij-collector.service`, then run
 ensure that container starts independently and that its address in `DATABASE_URL` is reachable
 from the service; a failed database call will be retried on the next collection slot.
 
+### Test and production database deployments
+
+The repository has separate, self-contained Compose files for continuous deployment. They do
+not change or extend the developer `docker-compose.yml`, so the normal local database remains
+the `vogelvrij` Compose project on port 5433.
+
+| Environment | Compose file | Project | Host binding | Default database/user |
+| --- | --- | --- | --- | --- |
+| Development | `docker-compose.yml` | directory-derived | all interfaces, port 5433 | `vogelvrij` |
+| Test | `docker-compose.test.yml` | `vogelvrij-test` | `127.0.0.1:5434` | `vogelvrij_test` |
+| Production | `docker-compose.prod.yml` | `vogelvrij-prod` | `127.0.0.1:5435` | `vogelvrij_prod` |
+
+Test and production use different Compose project names, image names, host ports, and named
+volumes. They can therefore run beside each other and beside the developer database without
+sharing data or claiming the same port. Both deployment databases use the `unless-stopped`
+restart policy, so Docker restarts them after a daemon or server restart unless an operator
+explicitly stopped them. Their ports bind only to loopback and are not directly exposed on a
+public network interface.
+
+The deployment files deliberately have no default password. Supply `POSTGRES_PASSWORD` from
+the CD system's secret store; do not write it into either Compose file or commit an environment
+file. The non-secret database and user names may be overridden by the same CD environment when
+needed. Example deployment commands are:
+
+```sh
+# The CD runner exports POSTGRES_PASSWORD before this command.
+docker compose -f docker-compose.test.yml up -d --build --wait
+docker compose -f docker-compose.prod.yml up -d --build --wait
+```
+
+Applications running on the host use the corresponding loopback URL. These examples assume
+the default database and user names; insert the secret using the CD system rather than putting
+it in shell history or logs:
+
+```text
+test:       postgresql+psycopg://vogelvrij_test:<password>@127.0.0.1:5434/vogelvrij_test
+production: postgresql+psycopg://vogelvrij_prod:<password>@127.0.0.1:5435/vogelvrij_prod
+```
+
+Always name the intended deployment file explicitly. Plain `docker compose up` continues to
+operate only the development environment. Likewise, use the matching file for status, logs,
+exec, stop, and removal commands. Never add `-v` to `docker compose down` unless deletion of
+that environment's PostgreSQL data was explicitly intended.
+
 ## Collect Brussels Airport wind
 
 Run `vogelvrij-collect-wind` to fetch the latest EBBR METAR from the
