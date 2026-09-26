@@ -12,7 +12,34 @@ from .models import AircraftObservation, CollectionRun
 from .movements import sync_movements_for_run
 
 MAX_STORED_ALTITUDE_FT = 10_000
-EXCLUDED_AIRCRAFT_TYPES = frozenset({"C152", "P28A","BT36","PIVI"})
+EXCLUDED_AIRCRAFT_TYPES = frozenset(
+    {
+        "C152",
+        "P28A",
+        "BT36",
+        "PIVI",
+        "RF5",
+        "R44",
+        "R22",
+        "C172",
+        "C182",
+        "C206",
+        "C210",
+        "C310",
+        "C421",
+        "C425",
+        "C441",
+        "C441A",
+        "C441B",
+        "C441T",
+        "C441U",
+        "C441V",
+        "C441W",
+        "C441X",
+        "C441Y",
+        "C441Z",
+    }
+)
 
 
 def store_collection(

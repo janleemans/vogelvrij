@@ -25,6 +25,50 @@ def test_schedule_skips_missed_slots_without_drifting():
     assert collector.next_slot(100, 3600, 7400) == 10900
 
 
+def test_parser_reads_collector_defaults_from_environment(monkeypatch):
+    monkeypatch.setenv("VOGELVRIJ_LAT", "50.81")
+    monkeypatch.setenv("VOGELVRIJ_LON", "4.42")
+    monkeypatch.setenv("VOGELVRIJ_RADIUS_NM", "18")
+    monkeypatch.setenv("VOGELVRIJ_FLIGHT_INTERVAL", "75")
+
+    args = collector.build_parser().parse_args([])
+
+    assert (args.lat, args.lon, args.radius_nm, args.flight_interval) == (50.81, 4.42, 18, 75)
+
+
+def test_command_line_overrides_collector_environment(monkeypatch):
+    monkeypatch.setenv("VOGELVRIJ_FLIGHT_INTERVAL", "75")
+
+    args = collector.build_parser().parse_args(["--flight-interval", "90"])
+
+    assert args.flight_interval == 90
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("VOGELVRIJ_LAT", "nan"),
+        ("VOGELVRIJ_LON", "181"),
+        ("VOGELVRIJ_RADIUS_NM", "0"),
+        ("VOGELVRIJ_FLIGHT_INTERVAL", "invalid"),
+    ],
+)
+def test_invalid_environment_configuration_exits_before_scheduling(name, value):
+    env = os.environ.copy()
+    env[name] = value
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 2
+
+
 @pytest.mark.parametrize("flag,value", [("--lat", "nan"), ("--lon", "181"),
                                          ("--radius-nm", "0"),
                                          ("--flight-interval", "inf")])

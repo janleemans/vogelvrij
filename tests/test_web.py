@@ -9,6 +9,7 @@ import pytest
 from vogelvrij.web import (
     SCRIPT,
     TEMPLATE,
+    build_parser,
     forecast_display,
     history_data,
     latest_taf,
@@ -24,6 +25,24 @@ from vogelvrij.web import (
     wind_display,
     wind_light,
 )
+
+
+def test_web_parser_reads_environment_defaults(monkeypatch):
+    monkeypatch.setenv("VOGELVRIJ_WEB_HOST", "127.0.0.2")
+    monkeypatch.setenv("VOGELVRIJ_WEB_PORT", "9876")
+
+    args = build_parser().parse_args([])
+
+    assert args.host == "127.0.0.2"
+    assert args.port == 9876
+
+
+@pytest.mark.parametrize("port", ["0", "65536", "not-a-port"])
+def test_web_parser_rejects_invalid_environment_port(monkeypatch, port):
+    monkeypatch.setenv("VOGELVRIJ_WEB_PORT", port)
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args([])
 
 
 def test_today_bounds_follow_brussels_daylight_saving_time():

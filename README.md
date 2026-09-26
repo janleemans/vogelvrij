@@ -24,7 +24,7 @@ Pass the center and radius directly:
 vogelvrij-collect --lat 50.8503 --lon 4.3517 --radius-nm 25
 ```
 
-Or configure the three `VOGELVRIJ_*` environment variables shown in `.env.example` and run:
+Or configure the three location variables shown in `.env.example` and run:
 
 ```sh
 python -m vogelvrij
@@ -48,9 +48,11 @@ provider's dynamic rate limits; this is a foreground loop, not a background sche
 
 `scripts/collect-forever.py` runs all three installed one-shot commands in one foreground
 process. It starts each immediately, then schedules flights every 60 seconds (configurable
-with `--flight-interval SECONDS`) and EBBR METAR and TAF every 3,600 seconds each. Flights
-default to `--lat 50.900167 --lon 4.460000 --radius-nm 15`; the runner accepts those same
-three flags to override them. It prefers this checkout's `.venv/bin` commands, then `PATH`.
+with `--flight-interval SECONDS` or `VOGELVRIJ_FLIGHT_INTERVAL`) and EBBR METAR and TAF every
+3,600 seconds each. Flights default to `--lat 50.900167 --lon 4.460000 --radius-nm 15`; the
+runner accepts those flags or `VOGELVRIJ_LAT`, `VOGELVRIJ_LON`, and
+`VOGELVRIJ_RADIUS_NM`. Command-line options take precedence over environment values. It
+prefers this checkout's `.venv/bin` commands, then `PATH`.
 Set `DATABASE_URL` in the service environment if the database is not at the local default.
 Install the project, start the database, and apply all migrations before starting it:
 
@@ -66,35 +68,51 @@ Keep only one runner (and no other flight collector) active against a given data
 creation is not protected against concurrent collectors. Choose a flight interval appropriate
 to the upstream API's rate limits.
 
-For example, on a Linux server use a systemd service so it starts at boot and restarts if the
-runner itself exits. Replace the user and absolute paths with those on your server; if needed,
-create `/etc/vogelvrij/collector.env` with `DATABASE_URL=...` and restrict it to the service
-user (mode 0600). Do not commit that file or put credentials in the unit:
+The checked-in systemd templates in `deploy/systemd/` run both the continuous collector and
+the web prototype as user `deploy` from `/home/deploy/vogelvrij`. The `%i` instance is either
+`test` or `prod`; it selects the required `/etc/vogelvrij/%i.env` file. Install or update the
+unit definitions after each relevant deployment with:
 
-```ini
-[Unit]
-Description=Vogelvrij collectors
-After=network-online.target postgresql.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=vogelvrij
-WorkingDirectory=/opt/vogelvrij
-EnvironmentFile=-/etc/vogelvrij/collector.env
-ExecStart=/opt/vogelvrij/.venv/bin/python /opt/vogelvrij/scripts/collect-forever.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
+```sh
+sudo ./scripts/install-systemd-services.sh
 ```
 
-Save this as `/etc/systemd/system/vogelvrij-collector.service`, then run
-`sudo systemctl daemon-reload`, `sudo systemctl enable --now vogelvrij-collector`, and
-`journalctl -u vogelvrij-collector -f` to watch output. If PostgreSQL is containerized,
-ensure that container starts independently and that its address in `DATABASE_URL` is reachable
-from the service; a failed database call will be retried on the next collection slot.
+The installer copies the two templates to `/etc/systemd/system` and reloads systemd. It does
+not create secrets, enable services, or start processes. Before starting an instance, the CD
+system must atomically provision `/etc/vogelvrij/test.env` or `/etc/vogelvrij/prod.env` as a
+root-owned mode-0600 file. Use `deploy/systemd/test.env.example` and `prod.env.example` as the
+complete variable contract for both Compose and systemd, but construct the real file from the
+CD secret store rather than editing or committing it. `DATABASE_URL` must match the
+`POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_PORT` values used to
+initialize the database. The raw password belongs in `POSTGRES_PASSWORD`; URL-significant
+characters must be percent-encoded in the copy embedded in `DATABASE_URL`.
+
+The default web ports are intentionally separate and loopback-only: test uses 8767 and
+production uses 8766. Enable and start the desired environment after its database is healthy
+and its environment file is installed:
+
+```sh
+# Test
+sudo systemctl enable --now vogelvrij-collector@test.service vogelvrij-web@test.service
+
+# Production
+sudo systemctl enable --now vogelvrij-collector@prod.service vogelvrij-web@prod.service
+```
+
+Inspect them with, for example:
+
+```sh
+systemctl status vogelvrij-collector@test.service vogelvrij-web@test.service
+journalctl -u vogelvrij-collector@test.service -u vogelvrij-web@test.service -f
+```
+
+The collector template uses `Restart=always`; the web template uses `Restart=on-failure`.
+Both restart ten seconds after an unexpected exit, start at boot when enabled, wait for basic
+network/Docker ordering, and receive all runtime configuration through the protected
+environment file. The applications validate numeric settings before starting. Docker Compose
+remains responsible for starting and restarting PostgreSQL. A database failure is retried on
+the collector's next scheduled run; the web page returns HTTP 503 while its database is
+unavailable.
 
 ### Test and production database deployments
 
@@ -115,15 +133,16 @@ restart policy, so Docker restarts them after a daemon or server restart unless 
 explicitly stopped them. Their ports bind only to loopback and are not directly exposed on a
 public network interface.
 
-The deployment files deliberately have no default password. Supply `POSTGRES_PASSWORD` from
-the CD system's secret store; do not write it into either Compose file or commit an environment
-file. The non-secret database and user names may be overridden by the same CD environment when
-needed. Example deployment commands are:
+The deployment files deliberately have no default password. Provision the complete protected
+environment file from the CD secret store; do not write secrets into a Compose file or commit
+the real environment file. Pass the same file to Compose that systemd will load, so database
+name, user, password, and port cannot silently diverge. Example deployment commands are:
 
 ```sh
-# The CD runner exports POSTGRES_PASSWORD before this command.
-docker compose -f docker-compose.test.yml up -d --build --wait
-docker compose -f docker-compose.prod.yml up -d --build --wait
+sudo docker compose --env-file /etc/vogelvrij/test.env \
+  -f docker-compose.test.yml up -d --build --wait
+sudo docker compose --env-file /etc/vogelvrij/prod.env \
+  -f docker-compose.prod.yml up -d --build --wait
 ```
 
 Applications running on the host use the corresponding loopback URL. These examples assume
@@ -342,7 +361,9 @@ export GOOGLE_MAPS_API_KEY='your-restricted-browser-key'
 vogelvrij-web
 ```
 
-Open `http://127.0.0.1:8766/`. Use `vogelvrij-web --host 0.0.0.0 --port 8766` only when
+`VOGELVRIJ_WEB_HOST` and `VOGELVRIJ_WEB_PORT` provide environment defaults for the equivalent
+command-line flags; explicit flags take precedence. Open `http://127.0.0.1:8766/`. Use
+`vogelvrij-web --host 0.0.0.0 --port 8766` only when
 intentionally exposing the process through an appropriately configured reverse proxy. Set
 `DATABASE_URL` for a different PostgreSQL instance. Data requests read the current database;
 the browser receives display-only HTML/JSON and no database credentials. The history-map iframe

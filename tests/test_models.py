@@ -4,7 +4,12 @@ from vogelvrij.adsb_lol import Aircraft, CollectionResult
 from vogelvrij.database import DEFAULT_DATABASE_URL, database_url
 from vogelvrij.geography import APPROACH_25LR
 from vogelvrij.models import AircraftObservation, FlightMovement, WindObservation
-from vogelvrij.repository import _observation, _provider_datetime, _should_store_aircraft
+from vogelvrij.repository import (
+    EXCLUDED_AIRCRAFT_TYPES,
+    _observation,
+    _provider_datetime,
+    _should_store_aircraft,
+)
 
 INSIDE_25LR = {"lat": 50.9282, "lon": 4.5891}
 
@@ -100,7 +105,7 @@ def test_grounded_aircraft_is_not_stored():
 
 
 def test_excluded_aircraft_types_are_not_stored():
-    for aircraft_type in ("C152", "P28A", " c152 ", "p28a"):
+    for aircraft_type in (*EXCLUDED_AIRCRAFT_TYPES, " c152 ", "p28a"):
         assert not _should_store_aircraft(
             {"t": aircraft_type, "alt_baro": 5_000, **INSIDE_25LR}
         )

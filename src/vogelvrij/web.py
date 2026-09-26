@@ -49,6 +49,27 @@ MAP_FALLBACK_CSP = (
 )
 
 
+def web_port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("web port must be an integer") from exc
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("web port must be between 1 and 65535")
+    return port
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Serve the read-only public flight page")
+    parser.add_argument("--host", default=os.environ.get("VOGELVRIJ_WEB_HOST", "127.0.0.1"))
+    parser.add_argument(
+        "--port",
+        type=web_port,
+        default=os.environ.get("VOGELVRIJ_WEB_PORT", 8766),
+    )
+    return parser
+
+
 def map_csp(nonce: str) -> str:
     """Separate policy for the Maps JavaScript API document inside the iframe."""
     return (
@@ -344,7 +365,7 @@ def forecast_display(taf: TafForecast | None, now: datetime) -> dict | None:
                 **details, "kind": "transition", "label": "Geleidelijke overgang",
                 "from": local_time(start), "to": local_time(transition_end),
                 "approach": transition_approach or "Geen betrouwbare voorspelling",
-                "approach_label": "Mogelijke landingsbaan",
+                "approach_label": "Mogelijke naderingsbaan",
             })
             start = transition_end
         elif change in ("TEMPO", "PROB", "PROB30", "PROB40"):
@@ -352,7 +373,7 @@ def forecast_display(taf: TafForecast | None, now: datetime) -> dict | None:
                 **details, "kind": "temporary", "label": "Tijdelijk mogelijk",
                 "from": local_time(start), "to": local_time(end),
                 "approach": approach or "Geen betrouwbare voorspelling",
-                "approach_label": "Mogelijke landingsbaan",
+                "approach_label": "Mogelijke naderingsbaan",
             })
             continue
         if start < end:
@@ -360,7 +381,7 @@ def forecast_display(taf: TafForecast | None, now: datetime) -> dict | None:
                 **details, "kind": "prevailing", "label": "Verwacht",
                 "from": local_time(start), "to": local_time(end),
                 "approach": approach or "Geen betrouwbare voorspelling",
-                "approach_label": "Verwachte landingsbaan",
+                "approach_label": "Verwachte naderingsbaan",
             })
         prevailing_approach = approach
     return {
@@ -618,9 +639,7 @@ def make_handler(engine):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Serve the read-only public flight page")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8766)
+    parser = build_parser()
     args = parser.parse_args()
     engine = make_engine()
     with ThreadingHTTPServer((args.host, args.port), make_handler(engine)) as server:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import shutil
 import signal
 import subprocess
@@ -78,13 +79,31 @@ def run_job(job: Job, stop: threading.Event) -> None:
         print(f"{job.name} completed", flush=True)
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--lat", type=float, default=50.900167)
-    parser.add_argument("--lon", type=float, default=4.460000)
-    parser.add_argument("--radius-nm", type=float, default=15)
-    parser.add_argument("--flight-interval", type=positive_seconds, default=60,
-                        help="seconds between flight collection starts (default: 60)")
+    parser.add_argument(
+        "--lat", type=float, default=os.environ.get("VOGELVRIJ_LAT", 50.900167)
+    )
+    parser.add_argument(
+        "--lon", type=float, default=os.environ.get("VOGELVRIJ_LON", 4.460000)
+    )
+    parser.add_argument(
+        "--radius-nm", type=float, default=os.environ.get("VOGELVRIJ_RADIUS_NM", 15)
+    )
+    parser.add_argument(
+        "--flight-interval",
+        type=positive_seconds,
+        default=os.environ.get("VOGELVRIJ_FLIGHT_INTERVAL", 60),
+        help=(
+            "seconds between flight collection starts "
+            "(default: VOGELVRIJ_FLIGHT_INTERVAL or 60)"
+        ),
+    )
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
     args = parser.parse_args()
     if not math.isfinite(args.lat) or not -90 <= args.lat <= 90:
         parser.error("--lat must be between -90 and 90")
