@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="nl-BE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vogelvrij · OpenFreeMap-vliegsporen</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <style nonce="__CSP_NONCE__">
+    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #173044; background: #eef3f7; }
+    .shell { display: grid; grid-template-columns: minmax(290px, 360px) 1fr; height: 100dvh; }
+    .panel { padding: 24px; overflow: auto; background: #fff; border-right: 1px solid #d8e1e8; }
+    h1 { margin: 0 0 4px; font-size: 1.6rem; letter-spacing: -.03em; }
+    h2 { margin: 26px 0 12px; font-size: 1rem; }
+    .subtle { color: #586d7d; font-size: .9rem; line-height: 1.45; }
+    .summary { padding: 16px; margin: 20px 0; background: #eef5fa; border-radius: 12px; }
+    .summary strong { display: block; margin-bottom: 8px; font-size: 2rem; line-height: 1; }
+    #aircraft-list { padding: 0; margin: 0; list-style: none; }
+    #aircraft-list li + li { border-top: 1px solid #e4ebf0; }
+    .aircraft-button { width: 100%; padding: 11px 2px; border: 0; color: inherit;
+      background: transparent; font: inherit; text-align: left; cursor: pointer; }
+    .aircraft-button:hover, .aircraft-button:focus-visible { color: #006eaa; }
+    .aircraft-button strong, .aircraft-button span { display: block; }
+    .aircraft-button span { margin-top: 2px; color: #64798a; font-size: .82rem; }
+    .legend { margin-top: 20px; color: #63798a; font-size: .78rem; }
+    .error { color: #a62323; font-weight: 600; }
+    .map-actions { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; }
+    .refresh-button { padding: 7px 11px; border: 1px solid #315d40; border-radius: 5px;
+      color: #315d40; background: #fff; font: inherit; font-size: .82rem; font-weight: 700;
+      cursor: pointer; }
+    .refresh-button:hover, .refresh-button:focus-visible { background: #e8f1e9; }
+    .refresh-button:disabled { opacity: .65; cursor: wait; }
+    #map { min-height: 420px; }
+    #map-error { display: grid; min-height: 420px; padding: 32px; place-items: center;
+      color: #762020; background: #fff5f5; font-weight: 600; line-height: 1.55; text-align: center; }
+    #map-error[hidden], #map[hidden] { display: none; }
+    .aircraft-arrow { display: grid; width: 18px; height: 18px; padding: 0; border: 0;
+      appearance: none; place-items: center; color: #e45c3c; background: transparent;
+      filter: drop-shadow(0 0 1px #87321c); cursor: pointer; }
+    .aircraft-arrow svg { display: block; width: 10px; height: 14px; overflow: visible; }
+    .maplibregl-popup-content { color: #173044; font: 13px/1.45 system-ui, sans-serif; }
+    @media (max-width: 720px) {
+      .shell { display: flex; flex-direction: column-reverse; height: auto; min-height: 100dvh; }
+      #map, #map-error { height: 55dvh; min-height: 340px; }
+      .panel { border-right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="panel">
+      <h1>Vogelvrij · OpenFreeMap</h1>
+      <div class="subtle">Vliegtuigposities uit de tien recentste metingen</div>
+      <div class="summary">
+        <strong id="aircraft-count">0</strong>
+        <span id="run-detail" class="subtle"></span>
+      </div>
+      <p id="status" class="subtle">OpenFreeMap laden…</p>
+      <div class="map-actions">
+        <button class="refresh-button" id="refresh-map" type="button">Kaart vernieuwen</button>
+      </div>
+      <h2>Vliegtuigen · laatst gezien eerst</h2>
+      <ul id="aircraft-list"></ul>
+      <p class="legend">Gekleurde stippen tonen eerdere posities; lijnen verbinden de waarnemingen.
+        Een rode pijl toont de laatste positie en vliegrichting per vliegtuig. Blauw: 25LR-nadering;
+        groen: 7LR-nadering; oranje: 01-nadering; paars: 19-nadering.
+        De lijnen zijn geen gemeten vliegroutes of geluidsmetingen.</p>
+      <p class="legend">Kaart: OpenFreeMap © OpenMapTiles, gegevens van OpenStreetMap.
+        Vliegtuiggegevens © bijdragers van ADSB.lol (ODbL 1.0).</p>
+    </aside>
+    <div id="map" role="application" aria-label="OpenFreeMap met recente vliegtuigsporen"></div>
+    <div id="map-error" role="alert" hidden></div>
+  </main>
+
+  <script id="map-data" type="application/json">__MAP_DATA__</script>
+  <script nonce="__CSP_NONCE__">
+    const data = JSON.parse(document.getElementById("map-data").textContent);
+    const status = document.getElementById("status");
+    const mapElement = document.getElementById("map");
+    const mapError = document.getElementById("map-error");
+    const refreshButton = document.getElementById("refresh-map");
+    let map = null;
+    let ready = false;
+    let failed = false;
+
+    function reportMapState(state, message) {
+      if (window.parent !== window) {
+        window.parent.postMessage(
+          { source: "vogelvrij-openfree-map", state, message }, window.location.origin
+        );
+      }
+    }
+
+    function showMapError(message) {
+      if (failed) return;
+      failed = true;
+      status.textContent = message;
+      status.classList.add("error");
+      mapElement.hidden = true;
+      mapError.textContent = message;
+      mapError.hidden = false;
+      if (map) map.remove();
+      reportMapState("error", message);
+    }
+
+    const formatTime = value => new Intl.DateTimeFormat("nl-BE", {
+      dateStyle: "short", timeStyle: "short", timeZone: "Europe/Brussels",
+    }).format(new Date(value));
+    document.getElementById("aircraft-count").textContent = String(data.aircraft.length);
+    document.getElementById("run-detail").textContent =
+      `vliegtuigen · ${data.run_count} metingen · ${formatTime(data.first_collected_at)}–${formatTime(data.last_collected_at)}`;
+
+    function addTextRow(parent, label, value) {
+      const row = document.createElement("div");
+      const bold = document.createElement("strong");
+      bold.textContent = `${label}: `;
+      row.append(bold, document.createTextNode(String(value)));
+      parent.append(row);
+    }
+
+    function featureCollection(features) {
+      return { type: "FeatureCollection", features };
+    }
+
+    refreshButton.addEventListener("click", () => {
+      refreshButton.disabled = true;
+      refreshButton.textContent = "Kaart vernieuwen…";
+      window.location.reload();
+    });
+
+    try {
+      const maplibregl = window.maplibregl;
+      if (!maplibregl) throw new Error("MapLibre is niet beschikbaar");
+      map = new maplibregl.Map({
+        container: "map",
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        center: [data.center.lng, data.center.lat],
+        zoom: 11,
+        attributionControl: true,
+      });
+      map.addControl(new maplibregl.NavigationControl(), "top-right");
+      map.addControl(new maplibregl.FullscreenControl(), "top-right");
+      const loadTimeout = window.setTimeout(() => {
+        if (!ready) showMapError("OpenFreeMap reageert niet. Probeer het later opnieuw.");
+      }, 15000);
+
+      map.on("error", event => {
+        if (!ready) {
+          const detail = event.error?.message ? ` (${event.error.message})` : "";
+          showMapError(`OpenFreeMap kon niet worden geladen${detail}.`);
+        }
+      });
+
+      map.on("load", () => {
+        if (failed) return;
+        window.clearTimeout(loadTimeout);
+        const bounds = new maplibregl.LngLatBounds();
+        const approachColors = ["#006eaa", "#008f65", "#b46d00", "#8e4b9b"];
+        const approachFeatures = data.approaches.map((approach, index) => {
+          const coordinates = approach.points.map(point => [point.lng, point.lat]);
+          coordinates.push(coordinates[0]);
+          coordinates.forEach(coordinate => bounds.extend(coordinate));
+          return {
+            type: "Feature",
+            properties: { name: approach.name, color: approachColors[index % approachColors.length] },
+            geometry: { type: "Polygon", coordinates: [coordinates] },
+          };
+        });
+        map.addSource("approaches", { type: "geojson", data: featureCollection(approachFeatures) });
+        map.addLayer({
+          id: "approach-fills", type: "fill", source: "approaches",
+          paint: { "fill-color": ["get", "color"], "fill-opacity": 0.06 },
+        });
+        map.addLayer({
+          id: "approach-outlines", type: "line", source: "approaches",
+          paint: { "line-color": ["get", "color"], "line-width": 2, "line-opacity": 0.95 },
+        });
+
+        const trackColors = ["#6253a5", "#ca7a19", "#29799a", "#735b38", "#8e6392", "#537128"];
+        const trackFeatures = [];
+        const pointFeatures = [];
+        const list = document.getElementById("aircraft-list");
+        data.aircraft.forEach((aircraft, index) => {
+          const positions = aircraft.positions;
+          const path = positions.map(point => [point.lng, point.lat]);
+          const color = trackColors[index % trackColors.length];
+          path.forEach(coordinate => bounds.extend(coordinate));
+          if (path.length > 1) {
+            trackFeatures.push({
+              type: "Feature", properties: { color },
+              geometry: { type: "LineString", coordinates: path },
+            });
+          }
+          positions.slice(0, -1).forEach(point => pointFeatures.push({
+            type: "Feature", properties: { color },
+            geometry: { type: "Point", coordinates: [point.lng, point.lat] },
+          }));
+
+          const last = positions[positions.length - 1];
+          const lastPosition = path[path.length - 1];
+          const card = document.createElement("div");
+          addTextRow(card, "Vlucht", aircraft.flight || "Onbekend");
+          addTextRow(card, "ICAO", aircraft.hex || "Onbekend");
+          addTextRow(card, "Posities", positions.length);
+          addTextRow(card, "Laatste hoogte", last.altitude_ft == null ? "Onbekend" : `${last.altitude_ft} ft`);
+          addTextRow(card, "Laatste koers", last.track_degrees == null ? "Onbekend" : `${last.track_degrees}°`);
+          addTextRow(card, "Laatst gezien", formatTime(last.observed_at));
+          const popup = new maplibregl.Popup({ offset: 18 }).setDOMContent(card);
+          const arrow = document.createElement("button");
+          arrow.className = "aircraft-arrow";
+          arrow.type = "button";
+          arrow.title = aircraft.flight || aircraft.hex || "Onbekend vliegtuig";
+          arrow.setAttribute("aria-label", arrow.title);
+          const arrowIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          arrowIcon.setAttribute("viewBox", "0 0 10 14");
+          arrowIcon.setAttribute("aria-hidden", "true");
+          const triangle = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+          triangle.setAttribute("points", "5,0 10,14 0,14");
+          triangle.setAttribute("fill", "currentColor");
+          triangle.setAttribute("stroke", "#87321c");
+          triangle.setAttribute("stroke-width", "1");
+          triangle.setAttribute("stroke-linejoin", "round");
+          arrowIcon.append(triangle);
+          arrow.append(arrowIcon);
+          const marker = new maplibregl.Marker({
+            element: arrow,
+            rotation: last.track_degrees ?? 0,
+            rotationAlignment: "map",
+          }).setLngLat(lastPosition).setPopup(popup).addTo(map);
+
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+          button.className = "aircraft-button";
+          button.type = "button";
+          const name = document.createElement("strong");
+          name.textContent = aircraft.flight || aircraft.hex || "Onbekend vliegtuig";
+          const details = document.createElement("span");
+          details.textContent = `${positions.length} posities · laatst gezien ${formatTime(last.observed_at)}`;
+          button.append(name, details);
+          button.addEventListener("click", () => {
+            const aircraftBounds = path.reduce(
+              (result, coordinate) => result.extend(coordinate), new maplibregl.LngLatBounds()
+            );
+            if (path.length > 1) map.fitBounds(aircraftBounds, { padding: 70, maxZoom: 13 });
+            else map.easeTo({ center: lastPosition, zoom: Math.max(map.getZoom(), 12) });
+            marker.togglePopup();
+          });
+          item.append(button);
+          list.append(item);
+        });
+
+        map.addSource("tracks", { type: "geojson", data: featureCollection(trackFeatures) });
+        map.addLayer({
+          id: "tracks", type: "line", source: "tracks",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": ["get", "color"], "line-width": 3, "line-opacity": 0.85 },
+        });
+        map.addSource("earlier-positions", {
+          type: "geojson", data: featureCollection(pointFeatures),
+        });
+        map.addLayer({
+          id: "earlier-positions", type: "circle", source: "earlier-positions",
+          paint: {
+            "circle-radius": 3, "circle-color": ["get", "color"],
+            "circle-stroke-color": "#ffffff", "circle-stroke-width": 1,
+          },
+        });
+        if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 40, maxZoom: 13, duration: 0 });
+        status.textContent = data.aircraft.length
+          ? "Selecteer een vliegtuig om de laatste positie te bekijken."
+          : "In deze metingen zijn geen vliegtuigposities opgeslagen.";
+        ready = true;
+        reportMapState("ready", status.textContent);
+      });
+    } catch (error) {
+      showMapError("De OpenFreeMap-kaartsoftware kon niet worden geladen. Probeer het later opnieuw.");
+    }
+  </script>
+</body>
+</html>

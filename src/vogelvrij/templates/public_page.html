@@ -227,8 +227,11 @@
           </div>
           <p class="history-note">Geen meetronde betekent geen betrouwbare dekking, ook als de telling nul is. Het aantal meetrondes toont de steekproef, niet de volledigheid van de vluchtregistratie. De klok wordt bij zomer- en wintertijd als Belgische tijd getoond.</p>
         </section>
+        <!-- GOOGLE_MAP_COMPONENT_DISABLED
+        Remove this comment wrapper and enable GOOGLE_MAP_SETUP_DISABLED in
+        public_page.js to restore the click-loaded Google Maps component.
         <div class="map-section">
-          <h3>Recente vliegtuigsporen</h3>
+          <h3>Recente vliegtuigsporen · Google Maps</h3>
           <p class="table-description">Vliegtuigposities uit de 10 laatste meetrondes; dit zijn alle vluchten lager dan 10.000 ft in een straal van 30 km rond de luchthaven.</p>
           <div class="map-placeholder" id="map-placeholder">
             <div>
@@ -238,6 +241,12 @@
           </div>
           <p class="map-status" id="map-status" role="status" aria-live="polite" hidden></p>
           <iframe id="history-map" class="map-frame" title="Kaart met recente vliegtuigsporen" referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
+        </div>
+        -->
+        <div class="map-section">
+          <h3>Recente vliegtuigsporen · OpenFreeMap</h3>
+          <p class="table-description">Vliegtuigposities uit de 10 laatste meetrondes en de naderingscorridors, weergegeven met MapLibre en de vrije OpenFreeMap-kaartlaag.</p>
+          <iframe id="openfree-history-map" class="map-frame" src="/maps/openfree/history" loading="lazy" title="OpenFreeMap met recente vliegtuigsporen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>
         <p class="caveat">Dit zijn automatisch herkende naderingsbewegingen op basis van vliegtuigposities, koers en snelheid; geen bevestigde landingen of geluidsmetingen. De telling is afhankelijk van beschikbare waarnemingen en kan bewegingen missen of dubbel tellen. Bron vliegtuigposities: <a href="https://www.adsb.lol/">adsb.lol</a>. Windmeting en -verwachting: <a href="https://aviationweather.gov/data/api/">Aviation Weather Center</a> (METAR/TAF EBBR). Beeldmateriaal en oorspronkelijke paginatekst: <a href="https://bruegelvogelvrij.be/">Bruegelvogelvrij</a>.</p>
       </div>

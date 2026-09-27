@@ -3,53 +3,64 @@
 const REFRESH_INTERVAL_MS = 30_000;
 const countIds = { "07LR": "count-07lr", "25LR": "count-25lr", "01": "count-01", "19": "count-19" };
 let refreshInProgress = false;
-const mapFrame = document.getElementById("history-map");
-const mapPlaceholder = document.getElementById("map-placeholder");
-const mapLoadButton = document.getElementById("map-load-button");
-const mapStatus = document.getElementById("map-status");
 const mapTimeFormatter = new Intl.DateTimeFormat("nl-BE", {
   timeZone: "Europe/Brussels", day: "2-digit", month: "2-digit", year: "numeric",
   hour: "2-digit", minute: "2-digit", second: "2-digit",
 });
 
-function showMapStatus(message, isError = false) {
-  mapStatus.textContent = message;
-  mapStatus.hidden = false;
-  mapStatus.classList.toggle("map-status-error", isError);
+function setupLazyMap({ frameId, placeholderId, buttonId, statusId, src, messageSource }) {
+  const frame = document.getElementById(frameId);
+  const placeholder = document.getElementById(placeholderId);
+  const button = document.getElementById(buttonId);
+  const status = document.getElementById(statusId);
+
+  function showStatus(message, isError = false) {
+    status.textContent = message;
+    status.hidden = false;
+    status.classList.toggle("map-status-error", isError);
+  }
+
+  button.addEventListener("click", () => {
+    if (frame.src) return;
+    button.disabled = true;
+    button.textContent = "Kaart laden…";
+    showStatus("De kaart wordt geladen…");
+    placeholder.hidden = true;
+    frame.hidden = false;
+    frame.src = src;
+  });
+
+  frame.addEventListener("load", () => {
+    try {
+      if (frame.contentDocument?.title !== "Kaart niet beschikbaar") return;
+      const message = frame.contentDocument.body?.textContent.trim() ||
+        "De kaart is tijdelijk niet beschikbaar.";
+      showStatus(message, true);
+    } catch (error) {
+      showStatus("De kaart kon niet worden geladen.", true);
+    }
+  });
+
+  window.addEventListener("message", event => {
+    if (event.origin !== window.location.origin || event.source !== frame.contentWindow ||
+        event.data?.source !== messageSource) return;
+    if (event.data.state === "ready") {
+      const loadedAt = new Date();
+      showStatus(`Kaart geladen om ${mapTimeFormatter.format(loadedAt)} (Belgische tijd).`);
+    } else if (event.data.state === "error") {
+      showStatus(event.data.message || "De kaart kon niet worden geladen.", true);
+    }
+  });
 }
 
-mapLoadButton.addEventListener("click", () => {
-  if (mapFrame.src) return;
-  mapLoadButton.disabled = true;
-  mapLoadButton.textContent = "Kaart laden…";
-  showMapStatus("De kaart wordt geladen…");
-  mapPlaceholder.hidden = true;
-  mapFrame.hidden = false;
-  mapFrame.src = "/maps/history";
+/* GOOGLE_MAP_SETUP_DISABLED
+Remove this comment wrapper together with the matching HTML wrapper in
+public_page.html to restore the click-loaded Google Maps component.
+setupLazyMap({
+  frameId: "history-map", placeholderId: "map-placeholder", buttonId: "map-load-button",
+  statusId: "map-status", src: "/maps/history", messageSource: "vogelvrij-map",
 });
-
-mapFrame.addEventListener("load", () => {
-  try {
-    if (mapFrame.contentDocument?.title !== "Kaart niet beschikbaar") return;
-    const message = mapFrame.contentDocument.body?.textContent.trim() ||
-      "De kaart is tijdelijk niet beschikbaar.";
-    showMapStatus(message, true);
-  } catch (error) {
-    showMapStatus("De kaart kon niet worden geladen.", true);
-  }
-});
-
-window.addEventListener("message", event => {
-  if (event.origin !== window.location.origin || event.source !== mapFrame.contentWindow ||
-      event.data?.source !== "vogelvrij-map") return;
-  if (event.data.state === "ready") {
-    const loadedAt = new Date();
-    showMapStatus(`Kaart geladen om ${mapTimeFormatter.format(loadedAt)} (Belgische tijd).`);
-  } else if (event.data.state === "error") {
-    showMapStatus(event.data.message || "De kaart kon niet worden geladen.", true);
-  }
-});
-
+*/
 function updateRows(rows) {
   const body = document.getElementById("movement-rows");
   const fragment = document.createDocumentFragment();

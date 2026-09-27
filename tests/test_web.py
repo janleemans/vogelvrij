@@ -17,6 +17,7 @@ from vogelvrij.web import (
     make_handler,
     map_csp,
     movement_data,
+    openfree_map_csp,
     render_page,
     snapshot,
     theoretical_runway_cell,
@@ -396,8 +397,12 @@ def test_forecast_timeline_distinguishes_becmg_and_ignores_windless_tempo():
         "prevailing", "transition", "prevailing"
     ]
     assert data["periods"][0]["bearing"] == 60
-    assert data["periods"][1]["from"] == "20/09/2026 12:00"
-    assert data["periods"][1]["to"] == "20/09/2026 14:00"
+    assert data["issued"] == "Zaterdag 19-Sep, 19:00"
+    assert data["valid"] == (
+        "Zaterdag 19-Sep, 20:00 – Maandag 21-Sep, 02:00"
+    )
+    assert data["periods"][1]["from"] == "Zondag 20-Sep, 12:00"
+    assert data["periods"][1]["to"] == "Zondag 20-Sep, 14:00"
     assert data["periods"][2]["speed"] == "12 kt · stoten 20 kt"
     assert [period["approach"] for period in data["periods"]] == [
         "25LR", "25LR", "25LR"
@@ -405,6 +410,7 @@ def test_forecast_timeline_distinguishes_becmg_and_ignores_windless_tempo():
     page = render_page({"07LR": 0, "25LR": 0, "01": 0, "19": 0}, [], now, taf=taf)
     assert 'data-forecast-id="7"' in page
     assert "Geleidelijke overgang" in page
+    assert "Zondag 20-Sep, 12:00" in page
     assert "Wind uit 300°" in page
     assert "Wind uit 240°" in page
     assert "Verwachte naderingsbaan" in page
@@ -485,15 +491,30 @@ def test_page_loads_30_second_same_origin_polling_script():
     assert '.theoretical-runway-match { background:' in template
     assert '.theoretical-runway-mismatch { background:' in template
     assert 'document.addEventListener("visibilitychange"' in script
-    assert '<iframe id="history-map"' in template
+    disabled_google_html = template.split(
+        "<!-- GOOGLE_MAP_COMPONENT_DISABLED", maxsplit=1
+    )[1].split("-->", maxsplit=1)[0]
+    assert '<iframe id="history-map"' in disabled_google_html
+    assert '<iframe id="openfree-history-map"' not in disabled_google_html
     assert '<iframe id="history-map" class="map-frame" src=' not in template
-    assert 'id="map-load-button" type="button">Toon kaart</button>' in template
-    assert 'mapLoadButton.addEventListener("click"' in script
-    assert 'mapFrame.src = "/maps/history"' in script
-    assert "mapFrame.src =" in script
+    disabled_google_setup = script.split(
+        "/* GOOGLE_MAP_SETUP_DISABLED", maxsplit=1
+    )[1].split("*/", maxsplit=1)[0]
+    assert 'src: "/maps/history"' in disabled_google_setup
+    assert 'src: "/maps/openfree/history"' not in disabled_google_setup
+    assert "function setupLazyMap" in script
+    assert 'src: "/maps/history"' in script
     assert "mapRefreshButton" not in script
-    assert 'mapFrame.contentDocument?.title !== "Kaart niet beschikbaar"' in script
-    assert 'event.data?.source !== "vogelvrij-map"' in script
+    assert 'frame.contentDocument?.title !== "Kaart niet beschikbaar"' in script
+    assert "event.data?.source !== messageSource" in script
+    assert (
+        '<iframe id="openfree-history-map" class="map-frame" '
+        'src="/maps/openfree/history" loading="lazy"' in template
+    )
+    assert "openfree-map-load-button" not in template
+    assert "Toon OpenFreeMap" not in template
+    assert 'src: "/maps/openfree/history"' not in script
+    assert "Recente vliegtuigsporen · OpenFreeMap" in template
     assert 'timeZone: "Europe/Brussels"' in script
     assert "refreshMapIfChanged" not in script
     assert 'updateWind(data.wind)' in script
@@ -550,7 +571,39 @@ def test_history_map_without_key_has_clear_embeddable_fallback():
     assert "frame-ancestors 'self'" in options["csp"]
 
 
+def test_openfree_history_map_route_has_standalone_narrow_policy():
+    handler = object.__new__(make_handler(object()))
+    handler.path = "/maps/openfree/history"
+    sent = []
+    handler.send_body = lambda body, content_type, **options: sent.append(
+        (body, content_type, options)
+    )
+    data = {
+        "aircraft": [], "approaches": [], "run_count": 1,
+        "first_collected_at": "2026-09-27T10:00:00+00:00",
+        "last_collected_at": "2026-09-27T10:00:00+00:00",
+        "center": {"lat": 50.9, "lng": 4.4},
+    }
+    with patch.dict(os.environ, {"GOOGLE_MAPS_API_KEY": ""}), patch(
+        "vogelvrij.web.Session"
+    ), patch("vogelvrij.web.load_recent_runs", return_value=data):
+        handler.do_GET()
+    body, content_type, options = sent[0]
+    page = body.decode("utf-8")
+    assert content_type == "text/html; charset=utf-8"
+    assert "dummy-test-key" not in page
+    assert "https://tiles.openfreemap.org/styles/liberty" in page
+    assert "maplibre-gl@5.24.0" in page
+    assert "vogelvrij-openfree-map" in page
+    assert "https://tiles.openfreemap.org" in options["csp"]
+    assert "https://*.googleapis.com" not in options["csp"]
+    assert "worker-src blob:" in options["csp"]
+
+
 def test_map_csp_does_not_relax_main_page_policy():
     policy = map_csp("test-nonce")
     assert "script-src 'nonce-test-nonce'" in policy
     assert "img-src 'self'" in policy
+    openfree_policy = openfree_map_csp("test-nonce")
+    assert "script-src 'nonce-test-nonce'" in openfree_policy
+    assert "frame-ancestors 'self'" in openfree_policy

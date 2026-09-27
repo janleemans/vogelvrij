@@ -22,11 +22,35 @@ from vogelvrij.map_history import TEMPLATE as HISTORY_TEMPLATE
 from vogelvrij.map_history import load_recent_runs
 from vogelvrij.map_page import render_html
 from vogelvrij.models import CollectionRun, FlightMovement, TafForecast, WindObservation
+from vogelvrij.openfree_map import render_openfree_html
 from vogelvrij.runway_prediction import predict_landing_approach
 from vogelvrij.taf import timestamp
 from vogelvrij.weather import WIND_SOURCE, stored_wind_values
 
 BRUSSELS = ZoneInfo("Europe/Brussels")
+DUTCH_WEEKDAYS = (
+    "Maandag",
+    "Dinsdag",
+    "Woensdag",
+    "Donderdag",
+    "Vrijdag",
+    "Zaterdag",
+    "Zondag",
+)
+DUTCH_MONTHS = (
+    "Jan",
+    "Feb",
+    "Mrt",
+    "Apr",
+    "Mei",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Dec",
+)
 CORRIDORS = ("07LR", "25LR", "01", "19")
 # Nominal magnetic headings inferred from the runway designators. The 07/25
 # cards combine parallel runways and do not identify a specific runway end.
@@ -81,6 +105,19 @@ def map_csp(nonce: str) -> str:
         "connect-src 'self' https://*.googleapis.com https://*.google.com "
         "https://*.gstatic.com data: blob:; "
         "font-src https://fonts.gstatic.com; frame-src https://*.google.com; "
+        "worker-src blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
+    )
+
+
+def openfree_map_csp(nonce: str) -> str:
+    """Policy for the MapLibre/OpenFreeMap comparison document."""
+    return (
+        "default-src 'none'; "
+        f"script-src 'nonce-{nonce}' https://unpkg.com blob:; "
+        "style-src 'unsafe-inline' https://unpkg.com; "
+        f"style-src-elem 'nonce-{nonce}' https://unpkg.com; style-src-attr 'unsafe-inline'; "
+        "img-src 'self' data: blob: https://tiles.openfreemap.org; "
+        "connect-src https://tiles.openfreemap.org https://unpkg.com; "
         "worker-src blob:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
     )
 
@@ -204,6 +241,17 @@ def local_time(value: datetime | None) -> str:
     if value is None:
         return "—"
     return value.astimezone(BRUSSELS).strftime("%d/%m/%Y %H:%M")
+
+
+def taf_time(value: datetime | None) -> str:
+    """Format a TAF timestamp in explicit Dutch Belgian-local calendar form."""
+    if value is None:
+        return "—"
+    local = value.astimezone(BRUSSELS)
+    return (
+        f"{DUTCH_WEEKDAYS[local.weekday()]} "
+        f"{local.day:02d}-{DUTCH_MONTHS[local.month - 1]}, {local:%H:%M}"
+    )
 
 
 def display(value: str | None) -> str:
@@ -363,7 +411,7 @@ def forecast_display(taf: TafForecast | None, now: datetime) -> dict | None:
             )
             periods.append({
                 **details, "kind": "transition", "label": "Geleidelijke overgang",
-                "from": local_time(start), "to": local_time(transition_end),
+                "from": taf_time(start), "to": taf_time(transition_end),
                 "approach": transition_approach or "Geen betrouwbare voorspelling",
                 "approach_label": "Mogelijke naderingsbaan",
             })
@@ -371,7 +419,7 @@ def forecast_display(taf: TafForecast | None, now: datetime) -> dict | None:
         elif change in ("TEMPO", "PROB", "PROB30", "PROB40"):
             periods.append({
                 **details, "kind": "temporary", "label": "Tijdelijk mogelijk",
-                "from": local_time(start), "to": local_time(end),
+                "from": taf_time(start), "to": taf_time(end),
                 "approach": approach or "Geen betrouwbare voorspelling",
                 "approach_label": "Mogelijke naderingsbaan",
             })
@@ -379,7 +427,7 @@ def forecast_display(taf: TafForecast | None, now: datetime) -> dict | None:
         if start < end:
             periods.append({
                 **details, "kind": "prevailing", "label": "Verwacht",
-                "from": local_time(start), "to": local_time(end),
+                "from": taf_time(start), "to": taf_time(end),
                 "approach": approach or "Geen betrouwbare voorspelling",
                 "approach_label": "Verwachte naderingsbaan",
             })
@@ -393,8 +441,8 @@ def forecast_display(taf: TafForecast | None, now: datetime) -> dict | None:
             "Nog niet geldig" if now < taf.valid_from
             else "Verlopen" if now >= taf.valid_to else "Actueel"
         ),
-        "issued": local_time(taf.issued_at),
-        "valid": f"{local_time(taf.valid_from)} – {local_time(taf.valid_to)}",
+        "issued": taf_time(taf.issued_at),
+        "valid": f"{taf_time(taf.valid_from)} – {taf_time(taf.valid_to)}",
         "periods": periods,
     }
 
@@ -565,6 +613,9 @@ def make_handler(engine):
             if path == "/maps/history":
                 self.serve_history_map()
                 return
+            if path == "/maps/openfree/history":
+                self.serve_openfree_history_map()
+                return
             if path not in ("/", "/index.html", "/api/movements"):
                 self.send_error(404)
                 return
@@ -611,6 +662,21 @@ def make_handler(engine):
                 self.send_map_unavailable("De kaart is tijdelijk niet beschikbaar.")
                 return
             self.send_body(body, "text/html; charset=utf-8", csp=map_csp(nonce))
+
+        def serve_openfree_history_map(self) -> None:
+            try:
+                with Session(engine) as session:
+                    data = load_recent_runs(session)
+                nonce = secrets.token_urlsafe(24)
+                body = render_openfree_html(data, nonce=nonce).encode("utf-8")
+            except ValueError:
+                self.send_map_unavailable("Nog geen meetrondes beschikbaar voor de kaart.")
+                return
+            except Exception:
+                self.log_error("Could not render OpenFreeMap history map")
+                self.send_map_unavailable("De OpenFreeMap-kaart is tijdelijk niet beschikbaar.")
+                return
+            self.send_body(body, "text/html; charset=utf-8", csp=openfree_map_csp(nonce))
 
         def send_map_unavailable(self, message: str) -> None:
             body = (

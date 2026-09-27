@@ -392,18 +392,26 @@ observations or confirmed landings. The 30-second poll refreshes both charts. A 
 collection runs is not evidence that no aircraft flew. Local labels distinguish the repeated
 hour during the autumn daylight-saving change; the daily boundary follows Belgian time.
 
-Below the movement table, a same-origin frame serves `/maps/history`, but it has no `src` until a
-visitor explicitly selects **Toon kaart**. This route
-renders the existing `vogelvrij-map-history` view directly from the ten newest collection runs;
-it does not depend on or expose a generated map file, and its tracks are **not necessarily** the
-ten flights in the movement table. The map loads at most once per page visit, reports its load
-time in Belgian local time, and does **not** reload when the 30-second data poll sees a new
-collection run. Visitors who do not select the button cause no Google Maps load. The map document
-recognizes Google's `OverQuotaMapError` and replaces the map with a clear daily-limit message;
-other authentication and loading failures receive a separate generic message. The main page allows
-only same-origin framing; the map route has a separate nonce-based CSP for Google's scripts and
-map resources. Review Google Maps billing, attribution, key restrictions, and source-data license
-before making the site public.
+The previous click-loaded Google Maps component is temporarily disabled on the public page. Its
+HTML and JavaScript initialization remain next to the active implementation inside clearly named
+`GOOGLE_MAP_COMPONENT_DISABLED` and `GOOGLE_MAP_SETUP_DISABLED` comments. The existing
+`/maps/history` backend route, quota error handling, and Google-specific CSP remain available;
+remove both comment wrappers to restore the component.
+
+The visible map block embeds `/maps/openfree/history` directly in an iframe with native
+`loading="lazy"`. There is no separate load button: the browser loads the map when the iframe
+approaches the visible page area, and the page's 30-second polling never changes its `src` or
+reloads it. The map uses the ten-run data and offers polygons,
+tracks, position markers, directional final markers, aircraft list, detail popups, bounds fitting,
+navigation and fullscreen behavior through pinned MapLibre GL JS 5.24.0 and OpenFreeMap's Liberty
+style. Final aircraft positions use compact triangular markers whose sharp point follows
+the reported flight track. The in-map **Kaart vernieuwen** button explicitly reloads only the
+OpenFreeMap frame and queries the latest ten collection runs. OpenFreeMap needs no application key. Its iframe has a
+separate CSP for the pinned MapLibre assets on unpkg, OpenFreeMap tiles/styles/fonts/sprites, and
+the browser worker. A load timeout and pre-initialization error handler provide a readable fallback.
+MapLibre supplies the required OpenFreeMap/OpenMapTiles/OpenStreetMap attribution; the page also
+retains ADSB.lol attribution for the aircraft overlay. The free OpenFreeMap public instance has no
+SLA, so map failure does not affect the statistics or movement table.
 
 The page reproduces the text and layout of [Bruegelvogelvrij](https://bruegelvogelvrij.be/)
 and links to its four original images, so those images require that site to remain available.
@@ -432,7 +440,8 @@ the card text and lights update together during the page's 30-second poll.
 
 Below the four counter cards, the full-width TAF timeline shows forecast wind periods with
 arrows pointing where the wind blows, exact origin direction, speed and any gusts in knots,
-and issue/validity times in Belgian local time. A hatched BECMG card spans the reported
+and issue/validity times in Belgian local time. All TAF timestamps use an explicit Dutch
+format such as `Maandag 28-Sep, 08:00`. A hatched BECMG card spans the reported
 transition interval; a windless TEMPO group does not create a calm-wind card. The newest
 currently valid stored EBBR bulletin takes priority. If none is currently valid, the newest
 stored bulletin is still shown, labelled "Nog niet geldig" or "Verlopen" as appropriate;
