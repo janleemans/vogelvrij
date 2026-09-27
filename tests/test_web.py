@@ -485,13 +485,15 @@ def test_page_loads_30_second_same_origin_polling_script():
     assert '.theoretical-runway-match { background:' in template
     assert '.theoretical-runway-mismatch { background:' in template
     assert 'document.addEventListener("visibilitychange"' in script
-    assert 'src="/maps/history"' in template
-    assert 'loading="lazy"' in template
-    assert 'id="map-loaded-at"' in template
-    assert 'id="map-refresh-button" type="button" disabled' in template
-    assert 'mapFrame.addEventListener("load", markMapLoaded)' in script
-    assert 'mapRefreshButton.addEventListener("click"' in script
-    assert 'mapFrame.src = `/maps/history?refresh=${Date.now()}`' in script
+    assert '<iframe id="history-map"' in template
+    assert '<iframe id="history-map" class="map-frame" src=' not in template
+    assert 'id="map-load-button" type="button">Toon kaart</button>' in template
+    assert 'mapLoadButton.addEventListener("click"' in script
+    assert 'mapFrame.src = "/maps/history"' in script
+    assert "mapFrame.src =" in script
+    assert "mapRefreshButton" not in script
+    assert 'mapFrame.contentDocument?.title !== "Kaart niet beschikbaar"' in script
+    assert 'event.data?.source !== "vogelvrij-map"' in script
     assert 'timeZone: "Europe/Brussels"' in script
     assert "refreshMapIfChanged" not in script
     assert 'updateWind(data.wind)' in script

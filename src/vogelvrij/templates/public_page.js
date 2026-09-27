@@ -4,30 +4,50 @@ const REFRESH_INTERVAL_MS = 30_000;
 const countIds = { "07LR": "count-07lr", "25LR": "count-25lr", "01": "count-01", "19": "count-19" };
 let refreshInProgress = false;
 const mapFrame = document.getElementById("history-map");
-const mapLoadedAt = document.getElementById("map-loaded-at");
-const mapRefreshButton = document.getElementById("map-refresh-button");
+const mapPlaceholder = document.getElementById("map-placeholder");
+const mapLoadButton = document.getElementById("map-load-button");
+const mapStatus = document.getElementById("map-status");
 const mapTimeFormatter = new Intl.DateTimeFormat("nl-BE", {
   timeZone: "Europe/Brussels", day: "2-digit", month: "2-digit", year: "numeric",
   hour: "2-digit", minute: "2-digit", second: "2-digit",
 });
 
-function markMapLoaded() {
-  if (!mapFrame.contentDocument || mapFrame.contentDocument.URL === "about:blank") return;
-  const loadedAt = new Date();
-  mapLoadedAt.dateTime = loadedAt.toISOString();
-  mapLoadedAt.textContent = mapTimeFormatter.format(loadedAt);
-  mapRefreshButton.disabled = false;
-  mapRefreshButton.textContent = "Kaart vernieuwen";
+function showMapStatus(message, isError = false) {
+  mapStatus.textContent = message;
+  mapStatus.hidden = false;
+  mapStatus.classList.toggle("map-status-error", isError);
 }
 
-mapFrame.addEventListener("load", markMapLoaded);
-if (mapFrame.contentDocument?.readyState === "complete" &&
-    mapFrame.contentDocument.URL !== "about:blank") markMapLoaded();
+mapLoadButton.addEventListener("click", () => {
+  if (mapFrame.src) return;
+  mapLoadButton.disabled = true;
+  mapLoadButton.textContent = "Kaart laden…";
+  showMapStatus("De kaart wordt geladen…");
+  mapPlaceholder.hidden = true;
+  mapFrame.hidden = false;
+  mapFrame.src = "/maps/history";
+});
 
-mapRefreshButton.addEventListener("click", () => {
-  mapRefreshButton.disabled = true;
-  mapRefreshButton.textContent = "Kaart wordt vernieuwd…";
-  mapFrame.src = `/maps/history?refresh=${Date.now()}`;
+mapFrame.addEventListener("load", () => {
+  try {
+    if (mapFrame.contentDocument?.title !== "Kaart niet beschikbaar") return;
+    const message = mapFrame.contentDocument.body?.textContent.trim() ||
+      "De kaart is tijdelijk niet beschikbaar.";
+    showMapStatus(message, true);
+  } catch (error) {
+    showMapStatus("De kaart kon niet worden geladen.", true);
+  }
+});
+
+window.addEventListener("message", event => {
+  if (event.origin !== window.location.origin || event.source !== mapFrame.contentWindow ||
+      event.data?.source !== "vogelvrij-map") return;
+  if (event.data.state === "ready") {
+    const loadedAt = new Date();
+    showMapStatus(`Kaart geladen om ${mapTimeFormatter.format(loadedAt)} (Belgische tijd).`);
+  } else if (event.data.state === "error") {
+    showMapStatus(event.data.message || "De kaart kon niet worden geladen.", true);
+  }
 });
 
 function updateRows(rows) {

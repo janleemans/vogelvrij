@@ -105,3 +105,6 @@ def test_history_template_draws_tracks_and_only_one_arrow_per_aircraft():
     assert "<script>alert(1)</script>" not in page
     assert '<html lang="nl-BE">' in page
     assert "Laatst gezien" in page
+    assert 'reportedErrorCode === "OverQuotaMapError"' in page
+    assert "De dagelijkse limiet voor Google Maps is bereikt" in page
+    assert 'reportMapState("ready"' in page

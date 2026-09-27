@@ -25,6 +25,9 @@
     .legend { font-size: .78rem; color: #63798a; margin-top: 20px; }
     .error { color: #a62323; font-weight: 600; }
     #map { min-height: 420px; }
+    #map-error { display: grid; place-items: center; min-height: 420px; padding: 32px;
+      color: #762020; background: #fff5f5; font-weight: 600; line-height: 1.55; text-align: center; }
+    #map-error[hidden], #map[hidden] { display: none; }
     @media (max-width: 720px) {
       .shell { display: flex; flex-direction: column-reverse; height: auto; min-height: 100dvh; }
       #map { height: 55dvh; min-height: 340px; }
@@ -51,12 +54,58 @@
       <p class="legend">Vliegtuiggegevens © bijdragers van ADSB.lol (ODbL 1.0).</p>
     </aside>
     <div id="map" role="application" aria-label="Kaart met vliegsporen uit recente metingen"></div>
+    <div id="map-error" role="alert" hidden></div>
   </main>
 
   <script id="map-data" type="application/json">__MAP_DATA__</script>
   <script nonce="__CSP_NONCE__">
     const data = JSON.parse(document.getElementById("map-data").textContent);
     const status = document.getElementById("status");
+    const mapElement = document.getElementById("map");
+    const mapError = document.getElementById("map-error");
+    const quotaMessage = "De dagelijkse limiet voor Google Maps is bereikt. De kaart is na de volgende dagelijkse reset opnieuw beschikbaar.";
+    let reportedErrorCode = null;
+
+    function reportMapState(state, message) {
+      if (window.parent !== window) {
+        window.parent.postMessage({ source: "vogelvrij-map", state, message }, window.location.origin);
+      }
+    }
+
+    function showMapError(message, errorCode = null) {
+      if (errorCode) reportedErrorCode = errorCode;
+      const finalMessage = reportedErrorCode === "OverQuotaMapError" ? quotaMessage : message;
+      status.textContent = finalMessage;
+      status.classList.add("error");
+      mapElement.hidden = true;
+      mapError.textContent = finalMessage;
+      mapError.hidden = false;
+      reportMapState("error", finalMessage);
+    }
+
+    function inspectGoogleMapsError(value) {
+      const details = String(value && value.message ? value.message : value || "");
+      if (details.includes("OverQuotaMapError")) {
+        showMapError(quotaMessage, "OverQuotaMapError");
+        return true;
+      }
+      return false;
+    }
+
+    const originalConsoleError = console.error.bind(console);
+    console.error = (...args) => {
+      args.forEach(inspectGoogleMapsError);
+      originalConsoleError(...args);
+    };
+    window.addEventListener("error", event => {
+      if (inspectGoogleMapsError(event.error || event.message)) return;
+      if (String(event.filename || "").includes("maps.googleapis.com")) {
+        showMapError("Google Maps kon niet worden geladen. Probeer het later opnieuw.");
+      }
+    }, true);
+    window.addEventListener("unhandledrejection", event => {
+      inspectGoogleMapsError(event.reason);
+    });
     const formatTime = value => new Intl.DateTimeFormat("nl-BE", {
       dateStyle: "short", timeStyle: "short", timeZone: "Europe/Brussels",
     }).format(new Date(value));
@@ -164,10 +213,12 @@
         ? "Selecteer een vliegtuig om de laatste positie te bekijken."
         : "In deze metingen zijn geen vliegtuigposities opgeslagen.";
       map.fitBounds(bounds, 40);
+      reportMapState("ready", status.textContent);
     };
     window.gm_authFailure = function () {
-      status.textContent = "Google Maps kon niet worden geladen. Controleer de sleutel en de websitebeperkingen.";
-      status.classList.add("error");
+      showMapError(
+        "Google Maps kon niet worden geladen. Controleer de API-sleutel, facturering en websitebeperkingen."
+      );
     };
   </script>
   <script async nonce="__CSP_NONCE__" src="__MAPS_SCRIPT_URL__"></script>

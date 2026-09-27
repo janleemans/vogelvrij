@@ -123,8 +123,8 @@ the `vogelvrij` Compose project on port 5433.
 | Environment | Compose file | Project | Host binding | Default database/user |
 | --- | --- | --- | --- | --- |
 | Development | `docker-compose.yml` | directory-derived | all interfaces, port 5433 | `vogelvrij` |
-| Test | `docker-compose.test.yml` | `vogelvrij-test` | `127.0.0.1:5434` | `vogelvrij_test` |
-| Production | `docker-compose.prod.yml` | `vogelvrij-prod` | `127.0.0.1:5435` | `vogelvrij_prod` |
+| Test | `docker-compose.test.yml` | `vogelvrij-test` | `127.0.0.1:5434` | `vogelvrij` |
+| Production | `docker-compose.prod.yml` | `vogelvrij-prod` | `127.0.0.1:5435` | `vogelvrij` |
 
 Test and production use different Compose project names, image names, host ports, and named
 volumes. They can therefore run beside each other and beside the developer database without
@@ -150,8 +150,8 @@ the default database and user names; insert the secret using the CD system rathe
 it in shell history or logs:
 
 ```text
-test:       postgresql+psycopg://vogelvrij_test:<password>@127.0.0.1:5434/vogelvrij_test
-production: postgresql+psycopg://vogelvrij_prod:<password>@127.0.0.1:5435/vogelvrij_prod
+test:       postgresql+psycopg://vogelvrij:<password>@127.0.0.1:5434/vogelvrij
+production: postgresql+psycopg://vogelvrij:<password>@127.0.0.1:5435/vogelvrij
 ```
 
 Always name the intended deployment file explicitly. Plain `docker compose up` continues to
@@ -392,14 +392,15 @@ observations or confirmed landings. The 30-second poll refreshes both charts. A 
 collection runs is not evidence that no aircraft flew. Local labels distinguish the repeated
 hour during the autumn daylight-saving change; the daily boundary follows Belgian time.
 
-Below the movement table, a lazy-loaded same-origin frame serves `/maps/history`. This route
+Below the movement table, a same-origin frame serves `/maps/history`, but it has no `src` until a
+visitor explicitly selects **Toon kaart**. This route
 renders the existing `vogelvrij-map-history` view directly from the ten newest collection runs;
 it does not depend on or expose a generated map file, and its tracks are **not necessarily** the
-ten flights in the movement table. The map loads once when the frame becomes visible, shows its
-last load date and time in Belgian local time, and does **not** reload when the 30-second data poll
-sees a new collection run. Visitors can use **Kaart vernieuwen** to reload the latest ten runs
-manually; each such reload may count as another Google Maps load. A visitor can also open the map
-in a full tab. The main page allows
+ten flights in the movement table. The map loads at most once per page visit, reports its load
+time in Belgian local time, and does **not** reload when the 30-second data poll sees a new
+collection run. Visitors who do not select the button cause no Google Maps load. The map document
+recognizes Google's `OverQuotaMapError` and replaces the map with a clear daily-limit message;
+other authentication and loading failures receive a separate generic message. The main page allows
 only same-origin framing; the map route has a separate nonce-based CSP for Google's scripts and
 map resources. Review Google Maps billing, attribution, key restrictions, and source-data license
 before making the site public.

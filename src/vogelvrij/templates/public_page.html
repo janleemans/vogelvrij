@@ -113,13 +113,17 @@
     .hour-column:not(:nth-child(6n + 1)) .hour-label { visibility: hidden; }
     .history-note { color: #60645e; font-size: 12px; margin: 12px 0 0; }
     .map-section { margin-top: 38px; }
-    .map-link { color: #315d40; }
-    .map-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin: 0 0 12px; }
-    .map-loaded-label { color: #60645e; font-size: 13px; }
-    .map-refresh-button { border: 1px solid #315d40; border-radius: 5px; padding: 8px 12px; background: #fff; color: #315d40; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-    .map-refresh-button:hover, .map-refresh-button:focus-visible { background: #e8f1e9; }
-    .map-refresh-button:disabled { opacity: .6; cursor: wait; }
+    .map-placeholder { display: grid; place-items: center; min-height: 250px; padding: 28px;
+      border: 1px solid #d8e1d8; border-radius: 8px; background: #f4f8f4; text-align: center; }
+    .map-placeholder p { max-width: 560px; margin: 0 0 18px; color: #4f5b51; line-height: 1.55; }
+    .map-load-button { border: 1px solid #315d40; border-radius: 5px; padding: 11px 18px;
+      background: #315d40; color: #fff; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+    .map-load-button:hover, .map-load-button:focus-visible { background: #244a31; }
+    .map-load-button:disabled { opacity: .65; cursor: wait; }
+    .map-status { margin: 0 0 12px; color: #60645e; font-size: 13px; }
+    .map-status-error { color: #a62323; font-weight: 600; }
     .map-frame { display: block; width: 100%; height: 620px; border: 1px solid #e2e5df; border-radius: 8px; background: #eef3f7; }
+    .map-frame[hidden], .map-placeholder[hidden], .map-status[hidden] { display: none; }
     .caveat { margin: 17px 0 0; line-height: 1.6; }
     .caveat a { color: #315d40; }
     footer { background: #f1f1f1; text-align: center; padding: 40px 16px; }
@@ -225,13 +229,15 @@
         </section>
         <div class="map-section">
           <h3>Recente vliegtuigsporen</h3>
-          <p class="table-description">Vliegtuigposities uit de 10 laatste meetrondes; dit zijn alle vluchten lager dan 10.000 ft in een straal van 30 km rond de luchthaven. <a class="map-link" href="/maps/history" target="_blank" rel="noopener">Open de kaart op volledig scherm</a>.</p>
-          <div class="map-controls">
-            <span class="map-loaded-label" role="status" aria-live="polite">Kaart laatst geladen: <time id="map-loaded-at">nog niet geladen</time> (Belgische tijd)</span>
-            <button class="map-refresh-button" id="map-refresh-button" type="button" disabled>Kaart vernieuwen</button>
+          <p class="table-description">Vliegtuigposities uit de 10 laatste meetrondes; dit zijn alle vluchten lager dan 10.000 ft in een straal van 30 km rond de luchthaven.</p>
+          <div class="map-placeholder" id="map-placeholder">
+            <div>
+              <p>De interactieve kaart wordt alleen geladen als je daar uitdrukkelijk voor kiest. Zo beperken we het aantal oproepen naar Google Maps.</p>
+              <button class="map-load-button" id="map-load-button" type="button">Toon kaart</button>
+            </div>
           </div>
-          <p class="table-description">De kaart wordt niet automatisch vernieuwd; gebruik de knop voor de nieuwste meetrondes.</p>
-          <iframe id="history-map" class="map-frame" src="/maps/history" title="Kaart met recente vliegtuigsporen" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          <p class="map-status" id="map-status" role="status" aria-live="polite" hidden></p>
+          <iframe id="history-map" class="map-frame" title="Kaart met recente vliegtuigsporen" referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
         </div>
         <p class="caveat">Dit zijn automatisch herkende naderingsbewegingen op basis van vliegtuigposities, koers en snelheid; geen bevestigde landingen of geluidsmetingen. De telling is afhankelijk van beschikbare waarnemingen en kan bewegingen missen of dubbel tellen. Bron vliegtuigposities: <a href="https://www.adsb.lol/">adsb.lol</a>. Windmeting en -verwachting: <a href="https://aviationweather.gov/data/api/">Aviation Weather Center</a> (METAR/TAF EBBR). Beeldmateriaal en oorspronkelijke paginatekst: <a href="https://bruegelvogelvrij.be/">Bruegelvogelvrij</a>.</p>
       </div>

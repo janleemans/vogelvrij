@@ -38,6 +38,8 @@ def test_test_and_prod_environment_examples_have_the_complete_contract():
     assert prod["VOGELVRIJ_WEB_PORT"] == "8766"
     assert test["VOGELVRIJ_WEB_HOST"] == prod["VOGELVRIJ_WEB_HOST"] == "127.0.0.1"
     for values in (test, prod):
+        assert values["POSTGRES_DB"] == "vogelvrij"
+        assert values["POSTGRES_USER"] == "vogelvrij"
         database_url = urlsplit(values["DATABASE_URL"])
         assert database_url.username == values["POSTGRES_USER"]
         assert unquote(database_url.password or "") == values["POSTGRES_PASSWORD"]
@@ -72,6 +74,8 @@ def test_deployment_compose_files_use_isolated_loopback_ports_and_required_passw
         )
 
         assert f"name: vogelvrij-{environment_name}" in compose
+        assert "POSTGRES_DB: ${POSTGRES_DB:-vogelvrij}" in compose
+        assert "POSTGRES_USER: ${POSTGRES_USER:-vogelvrij}" in compose
         assert "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?" in compose
         assert f'"127.0.0.1:${{POSTGRES_PORT:-{database_port}}}:5432"' in compose
         assert "restart: unless-stopped" in compose

@@ -7,8 +7,8 @@ services:
     image: vogelvrij-test-postgis:16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-vogelvrij_test}
-      POSTGRES_USER: ${POSTGRES_USER:-vogelvrij_test}
+      POSTGRES_DB: ${POSTGRES_DB:-vogelvrij}
+      POSTGRES_USER: ${POSTGRES_USER:-vogelvrij}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
