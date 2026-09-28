@@ -247,7 +247,9 @@ stored observation qualifies as a movement. See `HANDOVER.md` for current geomet
 After each stored collection, qualifying observations are linked to a `flight_movements` row.
 A movement requires a position inside one of the four approach corridors, ground track within
 10° of its nominal approach heading (25LR: 240–260°, 07LR: 60–80°, 01: 0–20°, 19: 180–200°),
-ground speed of at least 100 knots, and an ICAO aircraft address. The corridor code is stored
+ground speed of at least 100 knots, altitude strictly below 4,000 feet, and an ICAO aircraft
+address. Barometric altitude is preferred; geometric altitude is used when barometric altitude
+is unavailable. An unknown altitude or exactly 4,000 feet does not qualify. The corridor code is stored
 as `25LR`, `07LR`, `01`, or `19`. A repeat observation of the same aircraft within 15 minutes
 of the movement's creation updates that movement, even if its callsign changes. At exactly
 15 minutes or later, a new movement can be created. Missing aircraft addresses cannot be

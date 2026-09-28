@@ -17,6 +17,7 @@ from .weather import WIND_SOURCE, stored_wind_values
 
 MIN_GROUND_SPEED_KNOTS = 100
 MAX_HEADING_DIFFERENCE_DEGREES = 10
+MAX_ALTITUDE_FOR_LANDING = 4000  # feet
 MOVEMENT_DEDUP_WINDOW = timedelta(minutes=15)
 
 # These nominal headings implement the requested inclusive ranges: 240-260,
@@ -30,19 +31,25 @@ APPROACH_HEADINGS = {
 
 
 def classify_approach(observation: AircraftObservation) -> Optional[str]:
-    """Return a matching corridor for a positioned, aligned aircraft at >=100 kt."""
+    """Return a corridor for an aligned aircraft below 4,000 ft and at >=100 kt."""
 
     lat = _finite_number(observation.lat)
     lon = _finite_number(observation.lon)
     track = _finite_number(observation.track_degrees)
     speed = _finite_number(observation.ground_speed_knots)
+    altitude_value = observation.alt_baro_ft
+    if altitude_value is None:
+        altitude_value = observation.alt_geom_ft
+    altitude = _finite_number(altitude_value)
     if (
         lat is None
         or lon is None
         or track is None
         or speed is None
+        or altitude is None
         or not (-90 <= lat <= 90 and -180 <= lon <= 180)
         or speed < MIN_GROUND_SPEED_KNOTS
+        or altitude >= MAX_ALTITUDE_FOR_LANDING
     ):
         return None
 

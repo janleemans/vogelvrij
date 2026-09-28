@@ -31,7 +31,18 @@ def _session():
     return session
 
 
-def _observation(lat, lon, track, speed=100, *, hex_code="abc123", flight="BEL1", when=START):
+def _observation(
+    lat,
+    lon,
+    track,
+    speed=100,
+    *,
+    hex_code="abc123",
+    flight="BEL1",
+    when=START,
+    alt_baro_ft=2000,
+    alt_geom_ft=None,
+):
     return SimpleNamespace(
         lat=lat,
         lon=lon,
@@ -40,8 +51,8 @@ def _observation(lat, lon, track, speed=100, *, hex_code="abc123", flight="BEL1"
         hex=hex_code,
         flight=flight,
         observed_at=when,
-        alt_baro_ft=2000,
-        alt_geom_ft=None,
+        alt_baro_ft=alt_baro_ft,
+        alt_geom_ft=alt_geom_ft,
         flight_movement=None,
     )
 
@@ -68,6 +79,26 @@ def test_missing_or_bad_movement_data_is_rejected():
     assert classify_approach(_observation(50.77, 4.445, None)) is None
     assert classify_approach(_observation(50.77, 4.445, 10, speed=None)) is None
     assert classify_approach(_observation(50.85, 4.35, 10)) is None
+
+
+def test_movement_requires_altitude_below_4000_feet_with_geometric_fallback():
+    location = (50.77, 4.445, 10)
+
+    assert classify_approach(_observation(*location, alt_baro_ft=3999)) == "01"
+    assert classify_approach(_observation(*location, alt_baro_ft=4000)) is None
+    assert classify_approach(_observation(*location, alt_baro_ft=4001)) is None
+    assert classify_approach(
+        _observation(*location, alt_baro_ft=None, alt_geom_ft=3999)
+    ) == "01"
+    assert classify_approach(
+        _observation(*location, alt_baro_ft=None, alt_geom_ft=4000)
+    ) is None
+    assert classify_approach(
+        _observation(*location, alt_baro_ft=None, alt_geom_ft=None)
+    ) is None
+    assert classify_approach(
+        _observation(*location, alt_baro_ft=4001, alt_geom_ft=2000)
+    ) is None
 
 
 def test_route_reference_points_use_supplied_locations_and_derived_points():
@@ -275,7 +306,7 @@ def test_collection_keeps_outside_positions_but_only_links_corridor_movements():
         raw_aircraft=[
             {"hex": "outside", "alt_baro": 5_000, "lat": 50.85, "lon": 4.35,
              "track": 250, "gs": 150},
-            {"hex": "inside", "alt_baro": 5_000, "lat": 50.9282, "lon": 4.5891,
+            {"hex": "inside", "alt_baro": 3_999, "lat": 50.9282, "lon": 4.5891,
              "track": 250, "gs": 150},
         ],
     )
