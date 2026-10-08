@@ -11,12 +11,20 @@ from datetime import datetime, time, timedelta, timezone
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
-from urllib.parse import urlsplit
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from vogelvrij.articles import (
+    Article,
+    home_articles_markup,
+    load_articles,
+    news_articles_markup,
+    resolve_article_asset,
+)
 from vogelvrij.database import make_engine
 from vogelvrij.map_history import TEMPLATE as HISTORY_TEMPLATE
 from vogelvrij.map_history import load_recent_runs
@@ -63,8 +71,10 @@ WIND_LIGHT_LABELS = {
 }
 TEMPLATE = files("vogelvrij").joinpath("templates/public_page.html")
 SCRIPT = files("vogelvrij").joinpath("templates/public_page.js")
+NEWS_TEMPLATE = files("vogelvrij").joinpath("templates/news_page.html")
+NEWS_SCRIPT = files("vogelvrij").joinpath("templates/news_page.js")
 PAGE_CSP = (
-    "default-src 'none'; img-src https://bruegelvogelvrij.be; "
+    "default-src 'none'; img-src 'self' https://bruegelvogelvrij.be; "
     "style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; "
     "frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 )
@@ -90,6 +100,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--port",
         type=web_port,
         default=os.environ.get("VOGELVRIJ_WEB_PORT", 8766),
+    )
+    parser.add_argument(
+        "--articles-dir",
+        type=Path,
+        default=Path(os.environ.get("VOGELVRIJ_ARTICLES_DIR", "articles")),
+        help="directory containing Markdown articles and their local images",
     )
     return parser
 
@@ -538,6 +554,7 @@ def render_page(
     wind: WindObservation | None = None,
     taf: TafForecast | None = None,
     history: dict | None = None,
+    articles: list[Article] | None = None,
 ) -> str:
     if recent:
         rows = "\n".join(
@@ -599,16 +616,35 @@ def render_page(
         .replace("{{FORECAST_PERIODS}}", forecast_cards(forecast["periods"]) if forecast else "")
         .replace("{{HISTORY_DAILY}}", daily)
         .replace("{{HISTORY_HOURLY}}", hourly)
+        .replace("{{HOME_ARTICLES}}", home_articles_markup(articles or []))
         .replace("{{ROWS}}", rows)
     )
 
 
-def make_handler(engine):
+def render_news_page(articles: list[Article]) -> str:
+    return NEWS_TEMPLATE.read_text(encoding="utf-8").replace(
+        "{{ARTICLES}}", news_articles_markup(articles)
+    )
+
+
+def make_handler(engine, articles_dir: Path | None = None):
+    content_dir = articles_dir or Path(os.environ.get("VOGELVRIJ_ARTICLES_DIR", "articles"))
+
     class PublicPageHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             path = urlsplit(self.path).path
             if path == "/public_page.js":
                 self.send_body(SCRIPT.read_bytes(), "text/javascript; charset=utf-8")
+                return
+            if path == "/news_page.js":
+                self.send_body(NEWS_SCRIPT.read_bytes(), "text/javascript; charset=utf-8")
+                return
+            if path == "/nieuws":
+                body = render_news_page(load_articles(content_dir)).encode("utf-8")
+                self.send_body(body, "text/html; charset=utf-8")
+                return
+            if path.startswith("/article-assets/"):
+                self.serve_article_asset(unquote(path[len("/article-assets/"):]))
                 return
             if path == "/maps/history":
                 self.serve_history_map()
@@ -634,13 +670,32 @@ def make_handler(engine):
                     ).encode("utf-8")
                     content_type = "application/json; charset=utf-8"
                 else:
-                    body = render_page(counts, recent, now, wind, taf, history).encode("utf-8")
+                    articles = load_articles(content_dir)
+                    body = render_page(
+                        counts, recent, now, wind, taf, history, articles
+                    ).encode("utf-8")
                     content_type = "text/html; charset=utf-8"
             except Exception:
                 self.log_error("Could not read flight movement data")
                 self.send_error(503, "Movement data is temporarily unavailable")
                 return
             self.send_body(body, content_type)
+
+        def serve_article_asset(self, relative_path: str) -> None:
+            content_types = {
+                ".gif": "image/gif",
+                ".jpeg": "image/jpeg",
+                ".jpg": "image/jpeg",
+                ".png": "image/png",
+                ".webp": "image/webp",
+            }
+            try:
+                asset = resolve_article_asset(content_dir, relative_path)
+                body = asset.read_bytes()
+            except (FileNotFoundError, OSError, ValueError):
+                self.send_error(404)
+                return
+            self.send_body(body, content_types[asset.suffix.lower()])
 
         def serve_history_map(self) -> None:
             api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
@@ -708,7 +763,9 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
     engine = make_engine()
-    with ThreadingHTTPServer((args.host, args.port), make_handler(engine)) as server:
+    with ThreadingHTTPServer(
+        (args.host, args.port), make_handler(engine, args.articles_dir)
+    ) as server:
         print(f"Serving Vogelvrij at http://{args.host}:{args.port}/")
         server.serve_forever()
 

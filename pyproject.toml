@@ -9,7 +9,10 @@ description = "Collect and analyze aircraft movements over a local region."
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+    "bleach>=6.2,<7",
+    "Markdown>=3.7,<4",
     "psycopg[binary]>=3.2,<4",
+    "PyYAML>=6,<7",
     "requests>=2.31,<3",
     "sqlalchemy>=2.0,<3",
     # macOS system Python 3.9 is linked against LibreSSL, which urllib3 2 does not support.

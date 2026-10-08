@@ -19,6 +19,22 @@
     .impact img { display: block; width: min(30%, 90px); height: 85px; object-fit: contain; margin: 0 auto 16px; }
     .contact { font-size: 18px; font-weight: 700; color: inherit; text-decoration: none; }
     .contact:hover, .contact:focus { text-decoration: underline; }
+    .news-home { padding: 68px 16px 74px; background: #eef3ef; border-top: 1px solid #dfe8e1; }
+    .news-home-inner { width: min(960px, 100%); margin: auto; }
+    .news-home-header { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 24px; }
+    .news-home-header h2 { color: #244c38; }
+    .news-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .news-preview { min-width: 0; overflow: hidden; background: #fff; border: 1px solid #dce4dd; border-radius: 9px; box-shadow: 0 5px 22px rgba(0,0,0,.035); }
+    .news-preview-image { display: block; width: 100%; height: 190px; object-fit: cover; }
+    .news-preview-copy { padding: 22px 24px 25px; }
+    .news-preview time { color: #667067; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .news-preview h3 { margin: 5px 0 9px; color: #173044; font-size: 23px; line-height: 1.3; }
+    .news-preview h3 a { color: inherit; text-decoration: none; }
+    .news-preview h3 a:hover, .news-preview h3 a:focus { text-decoration: underline; }
+    .news-preview p { margin: 0; color: #565b55; }
+    .news-more { display: inline-block; flex: 0 0 auto; border-radius: 5px; padding: 11px 18px; background: #315d40; color: #fff; font-weight: 700; text-decoration: none; }
+    .news-more:hover, .news-more:focus { background: #244a31; }
+    .news-empty { grid-column: 1 / -1; margin: 0; padding: 30px; background: #fff; border: 1px solid #dce4dd; border-radius: 8px; color: #60645e; text-align: center; }
     .statistics { background: #f7f7f5; border-top: 1px solid #ecece9; padding: 72px 16px 80px; }
     .stats-inner { width: min(960px, 100%); margin: auto; }
     .eyebrow { text-transform: uppercase; letter-spacing: .16em; font-size: 12px; font-weight: 700; color: #62665e; margin: 0 0 8px; }
@@ -130,6 +146,8 @@
     @media (max-width: 760px) {
       .feature-grid { grid-template-columns: 1fr; }
       .feature-grid .card { min-height: 0; }
+      .news-home-header { align-items: start; flex-direction: column; }
+      .news-list { grid-template-columns: 1fr; }
     }
     @media (max-width: 650px) {
       .intro { padding: 48px 20px; }
@@ -160,6 +178,16 @@
       <p class="lead">Wij organiseren ons.</p>
       <p class="intro-copy">Een groep bezorgde burgers heeft zich verenigd onder de naam 'Bruegelvogelvrij'. Wij ondernemen concrete actie, inclusief juridische stappen indien nodig. Wij hebben bijvoorbeeld meegewerkt aan een reportage van Terzake over de vliegtuigoverlast, uitgezonden op 21 mei. Wij zoeken inwoners die hinder ondervinden van de huidige situatie. Zo kunnen wij als buurt de overlast effectief aankaarten! Samen staan we sterker! Doe mee en stuur een mail met uw naam en adres naar:</p>
       <a class="contact" href="mailto:bruegelvogelvrij@gmail.com">✉ Email: bruegelvogelvrij@gmail.com</a>
+    </section>
+
+    <section class="news-home" aria-labelledby="news-home-title">
+      <div class="news-home-inner">
+        <div class="news-home-header">
+          <div><p class="eyebrow">Vogelvrij · nieuws</p><h2 id="news-home-title">Laatste berichten</h2></div>
+          <a class="news-more" href="/nieuws">read more</a>
+        </div>
+        <div class="news-list">{{HOME_ARTICLES}}</div>
+      </div>
     </section>
 
     <section class="statistics" aria-labelledby="stats-title">

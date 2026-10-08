@@ -6,6 +6,7 @@ SYSTEMD = ROOT / "deploy" / "systemd"
 RUNTIME_KEYS = {
     "DATABASE_URL",
     "GOOGLE_MAPS_API_KEY",
+    "VOGELVRIJ_ARTICLES_DIR",
     "VOGELVRIJ_FLIGHT_INTERVAL",
     "VOGELVRIJ_LAT",
     "VOGELVRIJ_LON",
@@ -34,8 +35,10 @@ def test_test_and_prod_environment_examples_have_the_complete_contract():
     assert set(prod) == RUNTIME_KEYS | DATABASE_KEYS
     assert test["POSTGRES_PORT"] == "5434"
     assert test["VOGELVRIJ_WEB_PORT"] == "8767"
+    assert test["VOGELVRIJ_ARTICLES_DIR"] == "/var/lib/vogelvrij/test-articles"
     assert prod["POSTGRES_PORT"] == "5435"
     assert prod["VOGELVRIJ_WEB_PORT"] == "8766"
+    assert prod["VOGELVRIJ_ARTICLES_DIR"] == "/var/lib/vogelvrij/prod-articles"
     assert test["VOGELVRIJ_WEB_HOST"] == prod["VOGELVRIJ_WEB_HOST"] == "127.0.0.1"
     for values in (test, prod):
         assert values["POSTGRES_DB"] == "vogelvrij"

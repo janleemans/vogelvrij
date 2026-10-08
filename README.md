@@ -356,23 +356,31 @@ key exposure and Git-ignore precautions as the single-run map.
 
 ### Serve the public information page
 
-With the migrated database running, launch the read-only page:
+To launch the web interface on a development machine, from the repository root activate
+the project's virtual environment, start the local database, and run the web server:
 
 ```sh
-export GOOGLE_MAPS_API_KEY='your-restricted-browser-key'
+source .venv/bin/activate
+docker compose up -d db
 vogelvrij-web
 ```
 
+Open `http://127.0.0.1:8766/` in a browser. The server binds to loopback by default, so it
+is reachable only from the development machine. It reads the current local database; collect
+some data first if you want the page to show observations and movement statistics.
+
 `VOGELVRIJ_WEB_HOST` and `VOGELVRIJ_WEB_PORT` provide environment defaults for the equivalent
-command-line flags; explicit flags take precedence. Open `http://127.0.0.1:8766/`. Use
+command-line flags. `VOGELVRIJ_ARTICLES_DIR` or `--articles-dir` selects the Markdown news
+directory and defaults to `articles` relative to the working directory. Explicit flags take
+precedence. Use
 `vogelvrij-web --host 0.0.0.0 --port 8766` only when
 intentionally exposing the process through an appropriately configured reverse proxy. Set
 `DATABASE_URL` for a different PostgreSQL instance. Data requests read the current database;
 the browser receives display-only HTML/JSON and no database credentials. The history-map iframe
-does receive the browser Maps key, which is visible to page viewers: restrict it to Maps JavaScript
-API and authorized website referrers. If the key is unset or no collection runs exist, the frame
-shows an explanatory unavailable state. An unavailable database returns HTTP 503, not a misleading
-zero. This is a development server; HTTPS,
+uses OpenFreeMap and does not need a Google Maps key. The dormant Google Maps route does embed a
+browser key if it is re-enabled, so restrict such a key to the Maps JavaScript API and authorized
+website referrers. If no collection runs exist, the map frame shows an explanatory unavailable
+state. An unavailable database returns HTTP 503, not a misleading zero. This is a development server; HTTPS,
 deployment, access controls, and collection scheduling are not configured here.
 
 An open page refreshes its counts, latest EBBR wind reading, TAF forecast, and ten-row movement table every 30 seconds through the
@@ -381,6 +389,54 @@ visible again. A failed refresh leaves the last displayed values in place and sh
 the next interval retries. A normal page reload still renders current values server-side, so
 the page remains useful without JavaScript. Polling also rolls the daily counts over at Belgian
 midnight without requiring a new database write.
+
+#### Publish Markdown news articles
+
+The homepage reads the configured article directory on every request, displays the two newest
+articles between the contact introduction and the current-data section, and links to `/nieuws`.
+The news page sorts every valid article by its explicit publication time, newest first, in a
+responsive two-column layout. Long cards are about half a desktop viewport high until their
+accessible expand control is used. A browser refresh rescans all Markdown files; article changes
+do not require a web-service restart or application deployment.
+
+The repository's `articles/` directory contains five clearly labelled fictional demo articles
+and generated JPEGs for local testing. Use a persistent directory outside the checkout in a
+deployed environment, for example `/var/lib/vogelvrij/prod-articles`, so a code deployment cannot
+replace editorial content. The service account needs read access only. Upload a file under a
+temporary non-`.md` name and atomically rename it when complete, because only top-level `*.md`
+files are discovered. A typical article is:
+
+```markdown
+---
+title: "Voorbeeldtitel"
+published: "2026-10-08T09:00:00+02:00"
+summary: "Korte tekst voor de voorpagina."
+image: "images/voorbeeld.jpg"
+image_alt: "Beschrijving van de afbeelding"
+---
+
+De volledige **Markdown-tekst** begint hier.
+```
+
+`title` and timezone-aware `published` are required. `summary`, `image`, and `image_alt` are
+optional; without a summary the server derives a short plain-text excerpt. `draft: true` hides an
+article. The lowercase Markdown filename (letters, digits, hyphens, and underscores) becomes its
+stable page anchor. Relative Markdown images and the lead image must resolve inside the article directory and
+use PNG, JPEG, GIF, or WebP. SVG, external Markdown images, path traversal, symlink escapes, raw
+scripts, and unsafe URLs are rejected or removed. Invalid articles are logged and skipped without
+hiding valid articles. HTML and images are sent with `Cache-Control: no-store`, so replacing an
+asset under the same filename is visible after refresh.
+
+For test and production, create the directories separately and include the matching path in the
+protected environment file before starting the web service:
+
+```sh
+sudo install -d -o deploy -g deploy -m 0750 /var/lib/vogelvrij/test-articles
+sudo install -d -o deploy -g deploy -m 0750 /var/lib/vogelvrij/prod-articles
+```
+
+The news page does not query PostgreSQL and remains available if movement data is temporarily
+unavailable. The homepage still returns HTTP 503 when its movement-data query fails.
 
 The historical overview below the recent-movement table shows stacked totals for each of the
 four approach corridors on each of the last seven Belgian calendar days (including today,

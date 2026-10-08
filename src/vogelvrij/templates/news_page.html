@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nieuws — Bruegelvogelvrij</title>
+  <style>
+    :root { color-scheme: light; font-family: Lato, Arial, sans-serif; color: #181818; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: #f7f7f5; font-size: 15px; line-height: 1.6; }
+    .top-bar { height: 50px; background: #050505; }
+    header { padding: 54px 18px 42px; background: #fff; border-bottom: 1px solid #e2e5df; }
+    .header-inner, main { width: min(1120px, 100%); margin: auto; }
+    .back-link { color: #315d40; font-weight: 700; text-decoration: none; }
+    .back-link:hover, .back-link:focus { text-decoration: underline; }
+    h1 { margin: 18px 0 4px; font-size: clamp(34px, 6vw, 54px); font-weight: 400; letter-spacing: .04em; }
+    .intro { margin: 0; color: #60645e; font-size: 18px; }
+    main { padding: 36px 18px 72px; }
+    .article-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start; }
+    .article-card { position: relative; display: flex; flex-direction: column; height: clamp(420px, 52vh, 560px); min-width: 0; overflow: hidden; background: #fff; border: 1px solid #e2e5df; border-radius: 10px; box-shadow: 0 7px 26px rgba(0,0,0,.045); scroll-margin-top: 18px; }
+    .article-card:target { outline: 3px solid #8cae96; outline-offset: 3px; }
+    .article-image { display: block; width: 100%; height: 175px; flex: 0 0 175px; object-fit: cover; }
+    .article-card-header { padding: 20px 24px 0; }
+    .article-card time { color: #667067; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .article-card h2 { margin: 4px 0 12px; color: #173044; font-size: 25px; font-weight: 500; line-height: 1.25; }
+    .article-body { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0 24px 54px; color: #333b35; }
+    .article-body h2, .article-body h3, .article-body h4 { color: #244c38; line-height: 1.3; }
+    .article-body h2 { font-size: 21px; }
+    .article-body h3 { font-size: 18px; }
+    .article-body img { display: block; max-width: 100%; height: auto; margin: 18px auto; border-radius: 7px; }
+    .article-body a { color: #315d40; }
+    .article-body blockquote { margin-left: 0; padding-left: 16px; border-left: 4px solid #8cae96; color: #566058; }
+    .article-card-overflowing::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 88px; pointer-events: none; background: linear-gradient(transparent, #fff 58%); }
+    .article-expand { position: absolute; z-index: 1; right: 18px; bottom: 15px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #315d40; border-radius: 999px; padding: 7px 12px; background: #fff; color: #315d40; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .article-expand:hover, .article-expand:focus-visible { background: #edf5ef; }
+    .article-expand-icon { font-size: 20px; line-height: .7; transition: transform .2s; }
+    .article-card-expanded { grid-column: 1 / -1; height: auto; max-height: none; overflow: visible; }
+    .article-card-expanded .article-image { height: min(360px, 40vh); flex-basis: auto; }
+    .article-card-expanded .article-body { overflow: visible; padding-bottom: 76px; }
+    .article-card-expanded .article-expand-icon { transform: rotate(180deg); }
+    .article-card-expanded::after { display: none; }
+    .news-empty { grid-column: 1 / -1; padding: 40px; background: #fff; border: 1px solid #e2e5df; border-radius: 8px; text-align: center; color: #60645e; }
+    footer { background: #eceeeb; text-align: center; padding: 36px 16px; }
+    [hidden] { display: none !important; }
+    @media (max-width: 760px) {
+      .article-grid { grid-template-columns: 1fr; }
+      .article-card, .article-card-expanded { grid-column: auto; }
+      .article-card:not(.article-card-expanded) { height: min(620px, 68vh); min-height: 430px; }
+      .article-card-expanded { height: auto; min-height: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <div class="top-bar" aria-hidden="true"></div>
+  <header>
+    <div class="header-inner">
+      <a class="back-link" href="/">← Terug naar Bruegelvogelvrij</a>
+      <h1>Nieuws</h1>
+      <p class="intro">Berichten over vliegverkeer en de leefomgeving in onze regio.</p>
+    </div>
+  </header>
+  <main>
+    <div class="article-grid">{{ARTICLES}}</div>
+  </main>
+  <footer>Voor onze leefomgeving. Voor onze families. Voor onze toekomst.</footer>
+  <script src="/news_page.js" defer></script>
+</body>
+</html>
