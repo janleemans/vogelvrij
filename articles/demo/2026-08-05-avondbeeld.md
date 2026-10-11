@@ -1,6 +1,6 @@
 ---
 title: "[Demo] Een avondbeeld uit de omgeving"
-published: "2026-10-05T20:45:00+02:00"
+published: "2026-08-05T20:45:00+02:00"
 summary: "Fictieve redactionele inhoud die toont hoe een langer achtergrondstuk op de nieuwspagina wordt weergegeven."
 image: "images/evening-flight.jpg"
 image_alt: "Illustratief dorp bij avondlicht met een vliegtuig in de verte"

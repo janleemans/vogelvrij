@@ -1,6 +1,6 @@
 ---
 title: "[Demo] Wat geluidsmonitoring kan toevoegen"
-published: "2026-10-06T12:15:00+02:00"
+published: "2026-08-06T12:15:00+02:00"
 summary: "Een fictieve toelichting over het verschil tussen vliegtuigposities en daadwerkelijke geluidsmetingen."
 image: "images/sound-monitor.jpg"
 image_alt: "Illustratief geluidsmeetapparaat in een tuin met een vliegtuig in de verte"

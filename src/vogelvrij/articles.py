@@ -28,6 +28,7 @@ ALLOWED_TAGS = {
     "a", "blockquote", "br", "code", "em", "h2", "h3", "h4", "hr", "img",
     "li", "ol", "p", "pre", "strong", "ul",
 }
+ARTICLE_LINK_PATTERN = re.compile(r"<a(?=[\s>])")
 
 
 @dataclass(frozen=True)
@@ -199,6 +200,9 @@ def load_article(path: Path, articles_dir: Path) -> Optional[Article]:
         protocols={"http", "https", "mailto"},
         strip=True,
     )
+    body_html = ARTICLE_LINK_PATTERN.sub(
+        '<a target="_blank" rel="noopener noreferrer"', body_html
+    )
     summary_value = metadata.get("summary")
     if summary_value is not None and not isinstance(summary_value, str):
         raise ValueError("summary must be a string")
@@ -257,14 +261,13 @@ def home_articles_markup(articles: List[Article]) -> str:
     if not articles:
         return '<p class="news-empty">Nog geen nieuwsartikelen beschikbaar.</p>'
     return "".join(
-        '<article class="news-preview">'
+        f'<a class="news-preview" href="/nieuws#{escape(article.slug, quote=True)}">'
         + _lead_image(article, "news-preview-image")
         + '<div class="news-preview-copy">'
         + f'<time datetime="{escape(article.published.isoformat(), quote=True)}">'
         + escape(article.published_label) + "</time>"
-        + f'<h3><a href="/nieuws#{escape(article.slug, quote=True)}">'
-        + escape(article.title) + "</a></h3>"
-        + f"<p>{escape(article.summary)}</p></div></article>"
+        + f"<h3>{escape(article.title)}</h3>"
+        + f"<p>{escape(article.summary)}</p></div></a>"
         for article in articles[:2]
     )
 

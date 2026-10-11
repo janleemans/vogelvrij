@@ -1,6 +1,6 @@
 ---
 title: "[Demo] Informatieavond voor buurtbewoners"
-published: "2026-10-07T19:00:00+02:00"
+published: "2026-08-07T19:00:00+02:00"
 summary: "Een fictieve aankondiging waarmee de weergave van praktische informatie en langere artikelen wordt getest."
 image: "images/info-evening.jpg"
 image_alt: "Illustratieve informatieavond met bezoekers die naar een presentatie kijken"

@@ -64,6 +64,7 @@ def test_markdown_is_sanitized_and_local_images_are_rewritten(tmp_path):
         extra='image: "images/foto.png"\nimage_alt: "Beschrijving"\n',
         body=(
             "# Niet toegestaan\n\n"
+            "[Veilige link](https://example.org/nieuws)\n\n"
             "![Lokaal](images/foto.png)\n\n"
             "![Extern](https://example.com/tracker.png)\n\n"
             '<script>alert("x")</script> [klik](javascript:alert(1))'
@@ -71,6 +72,10 @@ def test_markdown_is_sanitized_and_local_images_are_rewritten(tmp_path):
     )
     article = load_articles(tmp_path)[0]
     assert article.image_url == "/article-assets/images/foto.png"
+    assert (
+        '<a target="_blank" rel="noopener noreferrer" '
+        'href="https://example.org/nieuws">Veilige link</a>'
+    ) in article.body_html
     assert 'src="/article-assets/images/foto.png"' in article.body_html
     assert "example.com" not in article.body_html
     assert "<script" not in article.body_html
@@ -119,7 +124,9 @@ def test_home_and_news_markup_have_expected_links_and_controls():
         image_alt="Alternatieve tekst",
     )
     home = home_articles_markup([article])
-    assert 'href="/nieuws#voorbeeld"' in home
+    assert '<a class="news-preview" href="/nieuws#voorbeeld">' in home
+    assert '<h3>Voorbeeld</h3>' in home
+    assert '<h3><a ' not in home
     assert "Samenvatting" in home
     news = news_articles_markup([article])
     assert 'id="voorbeeld"' in news
@@ -191,3 +198,6 @@ def test_news_page_script_and_layout_are_present():
     script = sent[0][0].decode()
     assert "scrollHeight > body.clientHeight" in script
     assert 'setAttribute("aria-expanded"' in script
+    assert "openHashArticle();" in script
+    assert 'scrollIntoView({ behavior, block: "start" })' in script
+    assert '`#${encodeURIComponent(card.id)}`' in script

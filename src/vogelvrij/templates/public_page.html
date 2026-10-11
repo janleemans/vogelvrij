@@ -24,13 +24,14 @@
     .news-home-header { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 24px; }
     .news-home-header h2 { color: #244c38; }
     .news-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-    .news-preview { min-width: 0; overflow: hidden; background: #fff; border: 1px solid #dce4dd; border-radius: 9px; box-shadow: 0 5px 22px rgba(0,0,0,.035); }
+    .news-preview { display: block; min-width: 0; overflow: hidden; background: #fff; border: 1px solid #dce4dd; border-radius: 9px; box-shadow: 0 5px 22px rgba(0,0,0,.035); color: inherit; text-decoration: none; }
+    .news-preview:hover { border-color: #a7bbaa; box-shadow: 0 7px 26px rgba(0,0,0,.075); }
+    .news-preview:focus-visible { outline: 3px solid #315d40; outline-offset: 3px; }
     .news-preview-image { display: block; width: 100%; height: 190px; object-fit: cover; }
     .news-preview-copy { padding: 22px 24px 25px; }
     .news-preview time { color: #667067; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     .news-preview h3 { margin: 5px 0 9px; color: #173044; font-size: 23px; line-height: 1.3; }
-    .news-preview h3 a { color: inherit; text-decoration: none; }
-    .news-preview h3 a:hover, .news-preview h3 a:focus { text-decoration: underline; }
+    .news-preview:hover h3 { text-decoration: underline; }
     .news-preview p { margin: 0; color: #565b55; }
     .news-more { display: inline-block; flex: 0 0 auto; border-radius: 5px; padding: 11px 18px; background: #315d40; color: #fff; font-weight: 700; text-decoration: none; }
     .news-more:hover, .news-more:focus { background: #244a31; }

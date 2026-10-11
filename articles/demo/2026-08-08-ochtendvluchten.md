@@ -1,6 +1,6 @@
 ---
 title: "[Demo] Ochtendvluchten boven de regio"
-published: "2026-10-08T08:30:00+02:00"
+published: "2026-08-08T08:30:00+02:00"
 summary: "Een fictief voorbeeldbericht over hoe vroege vliegbewegingen in een lokaal overzicht kunnen worden toegelicht."
 image: "images/morning-sky.jpg"
 image_alt: "Illustratieve ochtendfoto van een dorp met een vliegtuig hoog in de lucht"
